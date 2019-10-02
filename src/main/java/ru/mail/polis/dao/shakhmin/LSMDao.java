@@ -59,7 +59,7 @@ public final class LSMDao implements DAO {
                 final File file = path.toFile();
                 if (file.getName().matches(REGEX)) {
                     final String fileName = file.getName().split("\\.")[0];
-                    final long serialNumber = Long.valueOf(fileName.split("_")[1]);
+                    final long serialNumber = Long.parseLong(fileName.split("_")[1]);
                     serialNumberSStable.set(
                             Math.max(serialNumberSStable.get(), serialNumber + 1L));
                     ssTables.add(new SSTable(file.toPath(), serialNumber));
@@ -162,7 +162,7 @@ public final class LSMDao implements DAO {
                 final File file = path.toFile();
                 if (file.getName().matches(REGEX)) {
                     final String fileName = file.getName().split("\\.")[0];
-                    final long serialNumber = Long.valueOf(fileName.split("_")[1]);
+                    final long serialNumber = Long.parseLong(fileName.split("_")[1]);
                     if (serialNumber == serialNumberSStable.get() - 1L) {
                         ssTables.add(new SSTable(file.toPath(), serialNumber));
                         return FileVisitResult.CONTINUE;

@@ -32,9 +32,9 @@ public class SimpleHttpServer extends HttpServer implements Service {
         try {
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
-                    final ByteBuffer value = dao.get(key);
-                    final ByteBuffer duplicate = value.duplicate();
-                    final byte[] body = new byte[duplicate.remaining()];
+                    final var value = dao.get(key);
+                    final var duplicate = value.duplicate();
+                    final var body = new byte[duplicate.remaining()];
                     duplicate.get(body);
                     return Response.ok(body);
 
@@ -64,13 +64,20 @@ public class SimpleHttpServer extends HttpServer implements Service {
         return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
     }
 
+    @Override
+    public void handleDefault(final Request request,
+                              final HttpSession session) throws IOException {
+        final Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+        session.sendResponse(response);
+    }
+
     private static HttpServerConfig getConfig(final int port) {
         if (port <= 1024 || port >= 65535) {
             throw new IllegalArgumentException("Invalid port");
         }
-        final AcceptorConfig acceptor = new AcceptorConfig();
+        final var acceptor = new AcceptorConfig();
         acceptor.port = port;
-        final HttpServerConfig config = new HttpServerConfig();
+        final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         return config;
     }
