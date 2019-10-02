@@ -48,9 +48,9 @@ public final class SSTable implements Table {
                     .limit(mapped.limit() - Long.BYTES);
             this.offsets = offsetsBuffer.slice().asLongBuffer();
 
-            this.rows = mapped.duplicate()
+            this.rows = mapped.asReadOnlyBuffer()
                     .limit(offsetsBuffer.position())
-                    .slice().asReadOnlyBuffer();
+                    .slice();
         }
     }
 
@@ -60,19 +60,18 @@ public final class SSTable implements Table {
         final long rowSize = (offsetPosition == rowsNumber - 1)
                 ? rows.limit() - offset
                 : offsets.get((int) (offsetPosition + 1)) - offset;
-        return rows.duplicate()
+        return rows.asReadOnlyBuffer()
                 .position((int) offset)
                 .limit((int) (rowSize + offset))
-                .slice().asReadOnlyBuffer();
+                .slice();
     }
 
     @NotNull
     private ByteBuffer keyAt(@NotNull final ByteBuffer row) {
-        final var rowBuffer = row.duplicate();
+        final var rowBuffer = row.asReadOnlyBuffer();
         final int keySize = rowBuffer.getInt();
         return rowBuffer.limit(keySize + Integer.BYTES)
-                .slice()
-                .asReadOnlyBuffer();
+                .slice();
     }
 
     private long timestampAt(@NotNull final ByteBuffer row) {
@@ -84,11 +83,10 @@ public final class SSTable implements Table {
 
     @NotNull
     private ByteBuffer valueAt(@NotNull final ByteBuffer row) {
-        final var rowBuffer = row.duplicate();
+        final var rowBuffer = row.asReadOnlyBuffer();
         final int keySize = rowBuffer.getInt();
         return rowBuffer.position(keySize + Integer.BYTES + Long.BYTES * 2)
-                .slice()
-                .asReadOnlyBuffer();
+                .slice();
     }
 
     @NotNull

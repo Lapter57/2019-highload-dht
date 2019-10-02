@@ -24,7 +24,7 @@ public class SimpleHttpServer extends HttpServer implements Service {
     @Path("/v0/entity")
     public Response entity(final Request request,
                            @Param("id") final String id) {
-        if (id == null || "".equals(id)) {
+        if (id == null || id.isEmpty()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
@@ -67,7 +67,7 @@ public class SimpleHttpServer extends HttpServer implements Service {
     @Override
     public void handleDefault(final Request request,
                               final HttpSession session) throws IOException {
-        final Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+        final var response = new Response(Response.BAD_REQUEST, Response.EMPTY);
         session.sendResponse(response);
     }
 
@@ -79,6 +79,7 @@ public class SimpleHttpServer extends HttpServer implements Service {
         acceptor.port = port;
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
+        config.selectors = 4;
         return config;
     }
 }
