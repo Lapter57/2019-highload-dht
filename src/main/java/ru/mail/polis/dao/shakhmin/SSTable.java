@@ -75,7 +75,7 @@ public final class SSTable implements Table {
     }
 
     private long timestampAt(@NotNull final ByteBuffer row) {
-        final var rowBuffer = row.duplicate();
+        final var rowBuffer = row.asReadOnlyBuffer();
         final int keySize = rowBuffer.getInt();
         return rowBuffer.position(keySize + Integer.BYTES)
                 .getLong();
