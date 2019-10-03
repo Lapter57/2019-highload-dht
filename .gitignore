@@ -12,5 +12,8 @@
 !.travis.yml
 !settings.gradle
 
+!profiling/**
+!wrk/*
+
 # ...even if they are in subdirectories
 !*/
