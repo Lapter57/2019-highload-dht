@@ -11,6 +11,10 @@
 !build.gradle.kts
 !.travis.yml
 !settings.gradle
+!gradle/wrapper/*
+
+!profiling/**
+!wrk/*
 
 # ...even if they are in subdirectories
 !*/
