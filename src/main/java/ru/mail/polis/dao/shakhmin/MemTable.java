@@ -5,13 +5,18 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.concurrent.ThreadSafe;
+
+@ThreadSafe
 public final class MemTable implements Table {
 
-    @NotNull private NavigableMap<ByteBuffer, Row> storage = new TreeMap<>();
-    private long sizeInBytes;
+    @NotNull private NavigableMap<ByteBuffer, Row> storage = new ConcurrentSkipListMap<>();
+    @NotNull private final AtomicLong sizeInBytes = new AtomicLong();
     private static final long SERIAL_NUMBER = Long.MAX_VALUE;
 
     @NotNull
@@ -29,9 +34,9 @@ public final class MemTable implements Table {
                 Value.of(System.currentTimeMillis(), value),
                 SERIAL_NUMBER));
         if (prev == null) {
-            sizeInBytes += Row.getSizeOfFlushedRow(key, value);
+            sizeInBytes.addAndGet(Row.getSizeOfFlushedRow(key, value));
         } else {
-            sizeInBytes += value.remaining();
+            sizeInBytes.addAndGet(value.remaining());
         }
     }
 
@@ -40,15 +45,15 @@ public final class MemTable implements Table {
         final var tombstone = Value.tombstone(System.currentTimeMillis());
         final var prev = storage.put(key, Row.of(key, tombstone, SERIAL_NUMBER));
         if (prev == null) {
-            sizeInBytes += Row.getSizeOfFlushedRow(key, tombstone.getData());
+            sizeInBytes.addAndGet(Row.getSizeOfFlushedRow(key, tombstone.getData()));
         } else if (!prev.getValue().isRemoved()){
-            sizeInBytes -= prev.getValue().getData().remaining();
+            sizeInBytes.addAndGet(-prev.getValue().getData().remaining());
         }
     }
 
     public void clear() {
-        storage = new TreeMap<>();
-        sizeInBytes = 0;
+        storage = new ConcurrentSkipListMap<>();
+        sizeInBytes.set(0L);
     }
 
     @Override
@@ -58,6 +63,6 @@ public final class MemTable implements Table {
 
     @Override
     public long sizeInBytes() {
-        return sizeInBytes;
+        return sizeInBytes.get();
     }
 }

@@ -2,9 +2,13 @@ package ru.mail.polis.dao.shakhmin;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
+import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.Iters;
 
 /**
  * A sorted collection for storing rows ({@link Row}).
