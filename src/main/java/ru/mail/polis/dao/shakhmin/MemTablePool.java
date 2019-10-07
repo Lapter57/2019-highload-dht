@@ -93,6 +93,7 @@ public class MemTablePool implements Table, Closeable {
                 if (current.sizeInBytes()
                         + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
                     tableToFlush = new TableToFlush(serialNumber, current);
+                    pendingToFlush.put(serialNumber, current);
                     serialNumber++;
                     current = new MemTable();
                 }
@@ -101,7 +102,6 @@ public class MemTablePool implements Table, Closeable {
             }
             if (tableToFlush != null) {
                 try {
-                    pendingToFlush.put(serialNumber, current);
                     flushQueue.put(tableToFlush);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
