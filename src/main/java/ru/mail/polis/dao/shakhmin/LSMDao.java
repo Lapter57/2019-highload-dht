@@ -1,13 +1,11 @@
 package ru.mail.polis.dao.shakhmin;
 
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.Iters;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,23 +17,22 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 
 public final class LSMDao implements DAO {
     private static final Logger log = LoggerFactory.getLogger(LSMDao.class);
 
-    private static final int NUMBER_OF_THREADS_TO_FLUSH = 5;
     private static final String SUFFIX = ".bin";
     private static final String PREFIX = "SSTable_";
     private static final String REGEX = PREFIX + "\\d+" + SUFFIX;
-    private static final ByteBuffer LOWEST_KEY = ByteBuffer.allocate(0);
 
     @NotNull private MemTablePool memTable;
     @NotNull private NavigableMap<Long, Table> ssTables = new ConcurrentSkipListMap<>();
@@ -54,13 +51,19 @@ public final class LSMDao implements DAO {
                     tableToFlush = memTable.takeToFlush();
                     final long serialNumber = tableToFlush.getSerialNumber();
                     poisonReceived = tableToFlush.isPoisonPill();
+                    final boolean isCompactTable = tableToFlush.isCompactTable();
                     final var table = tableToFlush.getTable();
-                    if (poisonReceived) {
-                        flush(serialNumber, table.iterator(LOWEST_KEY));
+                    if (poisonReceived || isCompactTable) {
+                        flush(serialNumber, table);
                     } else {
-                        flushAndLoad(serialNumber, table.iterator(LOWEST_KEY));
+                        flushAndLoad(serialNumber, table);
                     }
-                    memTable.flushed(serialNumber);
+                    if (isCompactTable) {
+                        completeCompaction(serialNumber);
+                        memTable.compacted();
+                    } else {
+                        memTable.flushed(serialNumber);
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (IOException e) {
@@ -73,7 +76,7 @@ public final class LSMDao implements DAO {
     public LSMDao(
             @NotNull final File flushDir,
             final long flushThresholdInBytes) throws IOException {
-        this(flushDir, flushThresholdInBytes, NUMBER_OF_THREADS_TO_FLUSH);
+        this(flushDir, flushThresholdInBytes, Runtime.getRuntime().availableProcessors() - 2);
     }
 
     /**
@@ -108,8 +111,8 @@ public final class LSMDao implements DAO {
         this.memTable = new MemTablePool(flushThresholdInBytes, serialNumberSStable.get());
         this.flushingTask = new FlushingTask();
         this.flusher = Executors.newSingleThreadExecutor();
+        flusher.execute(flushingTask);
         //this.flusher = Executors.newFixedThreadPool(nThreadsToFlush);
-        this.flusher.execute(flushingTask);
     }
 
     @NotNull
@@ -122,15 +125,8 @@ public final class LSMDao implements DAO {
 
     @NotNull
     private Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
-        final var memIterator = memTable.iterator(from);
-        final var iterators = new ArrayList<Iterator<Row>>();
-        iterators.add(memIterator);
-        for (final var ssTable: ssTables.descendingMap().values()) {
-            iterators.add(ssTable.iterator(from));
-        }
-        final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
-        final var collapsed = Iters.collapseEquals(merged, Row::getKey);
-        return Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
+        final var iterators = Table.combineTables(memTable, ssTables, from);
+        return Table.transformRows(iterators);
     }
 
     @Override
@@ -179,37 +175,36 @@ public final class LSMDao implements DAO {
         log.info("Flushing generation [{}] done", serialNumber);
     }
 
-//    @Override
-//    public void compact() throws IOException {
-//        final var iterator = rowsIterator(LOWEST_KEY);
-//        flush(iterator);
-//        clearAll();
-//    }
-//
-//    private void clearAll() throws IOException {
-//        memTable.clear();
-//        ssTables = new ArrayList<>();
-//        cleanDirectory();
-//    }
-//
-//    private void cleanDirectory() throws IOException {
-//        Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
-//            @Override
-//            public FileVisitResult visitFile(
-//                    final Path path,
-//                    final BasicFileAttributes attrs) throws IOException {
-//                final File file = path.toFile();
-//                if (file.getName().matches(REGEX)) {
-//                    final String fileName = file.getName().split("\\.")[0];
-//                    final long serialNumber = Long.parseLong(fileName.split("_")[1]);
-//                    if (serialNumber == serialNumberSStable.get() - 1L) {
-//                        ssTables.add(new SSTable(file.toPath(), serialNumber));
-//                        return FileVisitResult.CONTINUE;
-//                    }
-//                }
-//                Files.delete(path);
-//                return FileVisitResult.CONTINUE;
-//            }
-//        });
-//    }
+    @Override
+    public void compact() throws IOException {
+        log.info("Need compaction");
+        memTable.compact(ssTables);
+    }
+
+    private void completeCompaction(final long serialNumber) throws IOException {
+        log.info("Compaction is done. Serial number of compact table is [{}]", serialNumber);
+        ssTables = new ConcurrentSkipListMap<>();
+        cleanDirectory(serialNumber);
+    }
+
+    private void cleanDirectory(final long serialNumber) throws IOException {
+        Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(
+                    final Path path,
+                    final BasicFileAttributes attrs) throws IOException {
+                final File file = path.toFile();
+                if (file.getName().matches(REGEX)) {
+                    final String fileName = file.getName().split("\\.")[0];
+                    final long sn = Long.parseLong(fileName.split("_")[1]);
+                    if (sn >= serialNumber) {
+                        ssTables.put(sn, new SSTable(file.toPath(), sn));
+                        return FileVisitResult.CONTINUE;
+                    }
+                }
+                Files.delete(path);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
 }

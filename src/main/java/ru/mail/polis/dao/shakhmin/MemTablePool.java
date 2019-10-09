@@ -27,6 +27,7 @@ public class MemTablePool implements Table, Closeable {
     private long serialNumber;
 
     private final long flushThresholdInBytes;
+    private final AtomicBoolean isPendingCompaction;
     private final AtomicBoolean isClosed;
 
     public MemTablePool(final long flushThresholdInBytes,
@@ -43,6 +44,7 @@ public class MemTablePool implements Table, Closeable {
         this.serialNumber = startSerialNumber;
         this.flushQueue = new ArrayBlockingQueue<>(numberOfTablesInQueue);
         this.isClosed = new AtomicBoolean();
+        this.isPendingCompaction = new AtomicBoolean();
     }
 
     @NotNull
@@ -51,18 +53,11 @@ public class MemTablePool implements Table, Closeable {
         lock.readLock().lock();
         final List<Iterator<Row>> iterators;
         try {
-            final var memIterator = current.iterator(from);
-            iterators = new ArrayList<>();
-            iterators.add(memIterator);
-            for (final var table: pendingToFlush.descendingMap().values()) {
-                iterators.add(table.iterator(from));
-            }
+            iterators = Table.combineTables(current, pendingToFlush, from);
         } finally {
             lock.readLock().unlock();
         }
-        final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
-        final var collapsed = Iters.collapseEquals(merged, Row::getKey);
-        return Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
+        return Table.transformRows(iterators);
     }
 
     @Override
@@ -71,7 +66,7 @@ public class MemTablePool implements Table, Closeable {
         if (isClosed.get()) {
             throw new IllegalStateException("MemTablePool is already closed");
         }
-        enqueueToFlush(key);
+        setToFlush(key);
         current.upsert(key, value);
     }
 
@@ -80,11 +75,11 @@ public class MemTablePool implements Table, Closeable {
         if (isClosed.get()) {
             throw new IllegalStateException("MemTablePool is already closed");
         }
-        enqueueToFlush(key);
+        setToFlush(key);
         current.remove(key);
     }
 
-    private void enqueueToFlush(@NotNull final ByteBuffer key) {
+    private void setToFlush(@NotNull final ByteBuffer key) throws IOException {
         if (current.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
             lock.writeLock().lock();
@@ -92,7 +87,7 @@ public class MemTablePool implements Table, Closeable {
             try {
                 if (current.sizeInBytes()
                         + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
-                    tableToFlush = new TableToFlush(serialNumber, current);
+                    tableToFlush = TableToFlush.of(current.iterator(LOWEST_KEY), serialNumber);
                     pendingToFlush.put(serialNumber, current);
                     serialNumber++;
                     current = new MemTable();
@@ -110,6 +105,27 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
+    private void setCompactTableToFlush(@NotNull final Iterator<Row> rows) throws IOException {
+        lock.writeLock().lock();
+        TableToFlush tableToFlush;
+        try {
+            tableToFlush = new TableToFlush
+                    .Builder(rows, serialNumber)
+                    .isCompactTable()
+                    .build();
+            serialNumber++;
+            isPendingCompaction.compareAndSet(false, true);
+            current = new MemTable();
+        } finally {
+            lock.writeLock().unlock();
+        }
+        try {
+            flushQueue.put(tableToFlush);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     @NotNull
     public TableToFlush takeToFlush() throws InterruptedException {
         return flushQueue.take();
@@ -124,8 +140,19 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
-    public boolean hasTablesToFlush() {
-        return !flushQueue.isEmpty();
+    public void compact(@NotNull final NavigableMap<Long, Table> ssTables) throws IOException {
+        lock.readLock().lock();
+        final List<Iterator<Row>> iterators;
+        try {
+            iterators = Table.combineTables(current, ssTables, LOWEST_KEY);
+        } finally {
+            lock.readLock().unlock();
+        }
+        setCompactTableToFlush(Table.transformRows(iterators));
+    }
+
+    public void compacted() {
+        isPendingCompaction.compareAndSet(true, false);
     }
 
     @Override
@@ -160,7 +187,10 @@ public class MemTablePool implements Table, Closeable {
         lock.writeLock().lock();
         TableToFlush tableToFlush;
         try {
-            tableToFlush = new TableToFlush(serialNumber, current, true);
+            tableToFlush = new TableToFlush
+                    .Builder(current.iterator(LOWEST_KEY), serialNumber)
+                    .poisonPill()
+                    .build();
         } finally {
             lock.writeLock().unlock();
         }
