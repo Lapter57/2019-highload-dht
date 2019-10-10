@@ -18,8 +18,6 @@ import static ru.mail.polis.dao.shakhmin.Value.EMPTY_DATA;
 
 public class MemTablePool implements Table, Closeable {
 
-    private static final int NUMBER_OF_TABLES_IN_QUEUE = 2;
-
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private volatile MemTable current;
     private NavigableMap<Long, Table> pendingToFlush;
@@ -37,24 +35,11 @@ public class MemTablePool implements Table, Closeable {
                         final long startSerialNumber,
                         final int nThreadsToFlush,
                         @NotNull final Runnable flushingTask) {
-        this(
-                flushThresholdInBytes,
-                startSerialNumber,
-                NUMBER_OF_TABLES_IN_QUEUE,
-                nThreadsToFlush,
-                flushingTask);
-    }
-
-    public MemTablePool(final long flushThresholdInBytes,
-                        final long startSerialNumber,
-                        final int numberOfTablesInQueue,
-                        final int nThreadsToFlush,
-                        @NotNull final Runnable flushingTask) {
         this.flushThresholdInBytes = flushThresholdInBytes;
         this.current = new MemTable();
         this.pendingToFlush = new TreeMap<>();
         this.serialNumber = startSerialNumber;
-        this.flushQueue = new ArrayBlockingQueue<>(numberOfTablesInQueue);
+        this.flushQueue = new ArrayBlockingQueue<>(nThreadsToFlush + 1);
         this.isClosed = new AtomicBoolean();
         this.pendingToCompact = new TreeMap<>();
 

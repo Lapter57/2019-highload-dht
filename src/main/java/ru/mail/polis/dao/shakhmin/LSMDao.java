@@ -65,7 +65,7 @@ public final class LSMDao implements DAO {
     public LSMDao(
             @NotNull final File flushDir,
             final long flushThresholdInBytes) throws IOException {
-        this(flushDir, flushThresholdInBytes, Runtime.getRuntime().availableProcessors() - 2);
+        this(flushDir, flushThresholdInBytes, Runtime.getRuntime().availableProcessors() + 1);
     }
 
     /**
@@ -73,6 +73,7 @@ public final class LSMDao implements DAO {
      *
      * @param flushDir local disk folder to persist the data to
      * @param flushThresholdInBytes threshold of size of Memtable
+     * @param nThreadsToFlush number of threads to flush tables
      * @throws IOException if an I/O error is thrown by a visitor method
      */
     public LSMDao(
