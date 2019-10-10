@@ -1,13 +1,14 @@
 package ru.mail.polis.dao.shakhmin;
 
-import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
-import ru.mail.polis.dao.Iters;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,11 +24,11 @@ public class MemTablePool implements Table, Closeable {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private volatile MemTable current;
     private NavigableMap<Long, Table> pendingToFlush;
+    private NavigableMap<Long, Iterator<Row>> pendingToCompact;
     private BlockingQueue<TableToFlush> flushQueue;
     private long serialNumber;
 
     private final long flushThresholdInBytes;
-    private final AtomicBoolean isPendingCompaction;
     private final AtomicBoolean isClosed;
 
     public MemTablePool(final long flushThresholdInBytes,
@@ -44,7 +45,7 @@ public class MemTablePool implements Table, Closeable {
         this.serialNumber = startSerialNumber;
         this.flushQueue = new ArrayBlockingQueue<>(numberOfTablesInQueue);
         this.isClosed = new AtomicBoolean();
-        this.isPendingCompaction = new AtomicBoolean();
+        this.pendingToCompact = new TreeMap<>();
     }
 
     @NotNull
@@ -114,7 +115,7 @@ public class MemTablePool implements Table, Closeable {
                     .isCompactTable()
                     .build();
             serialNumber++;
-            isPendingCompaction.compareAndSet(false, true);
+            pendingToCompact.put(serialNumber, rows);
             current = new MemTable();
         } finally {
             lock.writeLock().unlock();
@@ -151,8 +152,13 @@ public class MemTablePool implements Table, Closeable {
         setCompactTableToFlush(Table.transformRows(iterators));
     }
 
-    public void compacted() {
-        isPendingCompaction.compareAndSet(true, false);
+    public void compacted(final long serialNumber) {
+        lock.writeLock().lock();
+        try {
+            pendingToCompact.remove(serialNumber);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     @Override

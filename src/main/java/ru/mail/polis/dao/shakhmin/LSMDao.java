@@ -15,16 +15,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 
 public final class LSMDao implements DAO {
@@ -60,7 +57,7 @@ public final class LSMDao implements DAO {
                     }
                     if (isCompactTable) {
                         completeCompaction(serialNumber);
-                        memTable.compacted();
+                        memTable.compacted(serialNumber);
                     } else {
                         memTable.flushed(serialNumber);
                     }
