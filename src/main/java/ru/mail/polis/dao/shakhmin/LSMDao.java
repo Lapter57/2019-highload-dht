@@ -18,9 +18,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -34,20 +31,16 @@ public final class LSMDao implements DAO {
     @NotNull private MemTablePool memTable;
     @NotNull private NavigableMap<Long, Table> ssTables = new ConcurrentSkipListMap<>();
     @NotNull private final File flushDir;
-    @NotNull private final ExecutorService flusher;
-    @NotNull private final Runnable flushingTask;
 
     class FlushingTask implements Runnable {
 
         @Override
         public void run() {
-            boolean poisonReceived = false;
-            while (!poisonReceived && !Thread.currentThread().isInterrupted()) {
                 TableToFlush tableToFlush = null;
                 try {
                     tableToFlush = memTable.takeToFlush();
                     final long serialNumber = tableToFlush.getSerialNumber();
-                    poisonReceived = tableToFlush.isPoisonPill();
+                    final boolean poisonReceived = tableToFlush.isPoisonPill();
                     final boolean isCompactTable = tableToFlush.isCompactTable();
                     final var table = tableToFlush.getTable();
                     if (poisonReceived || isCompactTable) {
@@ -66,7 +59,6 @@ public final class LSMDao implements DAO {
                 } catch (IOException e) {
                     log.error("Error while flush generation " + tableToFlush.getSerialNumber(), e);
                 }
-            }
         }
     }
 
@@ -105,11 +97,12 @@ public final class LSMDao implements DAO {
                 return FileVisitResult.CONTINUE;
             }
         });
-        this.memTable = new MemTablePool(flushThresholdInBytes, serialNumberSStable.get());
-        this.flushingTask = new FlushingTask();
-        this.flusher = Executors.newSingleThreadExecutor();
-        flusher.execute(flushingTask);
-        //this.flusher = Executors.newFixedThreadPool(nThreadsToFlush);
+        log.info("Number of threads to flush = {}", nThreadsToFlush);
+        this.memTable = new MemTablePool(
+                flushThresholdInBytes,
+                serialNumberSStable.get(),
+                nThreadsToFlush,
+                new FlushingTask());
     }
 
     @NotNull
@@ -141,14 +134,6 @@ public final class LSMDao implements DAO {
     @Override
     public void close() throws IOException {
         memTable.close();
-        flusher.shutdown();
-        try {
-            if (!flusher.awaitTermination(1, TimeUnit.MINUTES)) {
-                flusher.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private void flush(final long serialNumber,

@@ -9,8 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -28,17 +27,29 @@ public class MemTablePool implements Table, Closeable {
     private BlockingQueue<TableToFlush> flushQueue;
     private long serialNumber;
 
+    @NotNull private final ExecutorService flusher;
+    @NotNull private final Runnable flushingTask;
+
     private final long flushThresholdInBytes;
     private final AtomicBoolean isClosed;
 
     public MemTablePool(final long flushThresholdInBytes,
-                        final long startSerialNumber) {
-        this(flushThresholdInBytes, startSerialNumber, NUMBER_OF_TABLES_IN_QUEUE);
+                        final long startSerialNumber,
+                        final int nThreadsToFlush,
+                        @NotNull final Runnable flushingTask) {
+        this(
+                flushThresholdInBytes,
+                startSerialNumber,
+                NUMBER_OF_TABLES_IN_QUEUE,
+                nThreadsToFlush,
+                flushingTask);
     }
 
     public MemTablePool(final long flushThresholdInBytes,
                         final long startSerialNumber,
-                        final int numberOfTablesInQueue) {
+                        final int numberOfTablesInQueue,
+                        final int nThreadsToFlush,
+                        @NotNull final Runnable flushingTask) {
         this.flushThresholdInBytes = flushThresholdInBytes;
         this.current = new MemTable();
         this.pendingToFlush = new TreeMap<>();
@@ -46,6 +57,9 @@ public class MemTablePool implements Table, Closeable {
         this.flushQueue = new ArrayBlockingQueue<>(numberOfTablesInQueue);
         this.isClosed = new AtomicBoolean();
         this.pendingToCompact = new TreeMap<>();
+
+        this.flusher = Executors.newFixedThreadPool(nThreadsToFlush);
+        this.flushingTask = flushingTask;
     }
 
     @NotNull
@@ -102,6 +116,7 @@ public class MemTablePool implements Table, Closeable {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
+                flusher.execute(flushingTask);
             }
         }
     }
@@ -125,6 +140,7 @@ public class MemTablePool implements Table, Closeable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        flusher.execute(flushingTask);
     }
 
     @NotNull
@@ -202,6 +218,19 @@ public class MemTablePool implements Table, Closeable {
         }
         try {
             flushQueue.put(tableToFlush);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        flusher.execute(flushingTask);
+        stopFlushing();
+    }
+
+    private void stopFlushing() {
+        flusher.shutdown();
+        try {
+            if (!flusher.awaitTermination(1, TimeUnit.MINUTES)) {
+                flusher.shutdownNow();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
