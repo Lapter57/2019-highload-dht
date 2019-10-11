@@ -35,8 +35,7 @@ public class SimpleHttpServer extends HttpServer implements Service {
      * @param request request
      * @param id id of resource
      * @return
-     *
-     *  <p><ul>
+     *     <ul>
      *      <li> 200 if GET request and resource is found;
      *      <li> 201 if PUT request and resource is saved to storage;
      *      <li> 202 if DELETE request and resource is removed from storage;
