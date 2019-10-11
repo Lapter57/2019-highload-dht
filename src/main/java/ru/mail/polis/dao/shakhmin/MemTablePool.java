@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
-
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -170,7 +169,7 @@ public class MemTablePool implements Table, Closeable {
      * Compact SStables.
      *
      * @param ssTables SStables
-     * @throws IOException
+     * @throws IOException if an I/O error occurs
      */
     public void compact(@NotNull final NavigableMap<Long, Table> ssTables) throws IOException {
         lock.readLock().lock();

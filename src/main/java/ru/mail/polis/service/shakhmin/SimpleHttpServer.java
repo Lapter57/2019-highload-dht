@@ -31,19 +31,19 @@ public class SimpleHttpServer extends HttpServer implements Service {
     /**
      * This endpoint handles the request to insert, delete
      * and retrieve data from the storage.
+     *
      * @param request request
      * @param id id of resource
      * @return
-     *  <p>
-     *      <ul>
-     *          <li> 200 if GET request and resource is found;
-     *          <li> 201 if PUT request and resource is saved to storage;
-     *          <li> 202 if DELETE request and resource is removed from storage;
-     *          <li> 404 if resource with {@code id} is not found;
-     *          <li> 405 if method not allowed;
-     *          <li> 500 if internal error;
-     *      </ul>
-     *  <p>
+     *
+     *  <p><ul>
+     *      <li> 200 if GET request and resource is found;
+     *      <li> 201 if PUT request and resource is saved to storage;
+     *      <li> 202 if DELETE request and resource is removed from storage;
+     *      <li> 404 if resource with {@code id} is not found;
+     *      <li> 405 if method not allowed;
+     *      <li> 500 if internal error;
+     *     </ul>
      */
     @Path("/v0/entity")
     public Response entity(final Request request,
@@ -53,32 +53,20 @@ public class SimpleHttpServer extends HttpServer implements Service {
         }
 
         final var key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
-
         try {
-            Response response;
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
-                    final var value = dao.get(key);
-                    final var duplicate = value.duplicate();
-                    final var body = new byte[duplicate.remaining()];
-                    duplicate.get(body);
-                    response = Response.ok(body);
-                    break;
+                    return get(key);
 
                 case Request.METHOD_PUT:
-                    dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-                    response = new Response(Response.CREATED, Response.EMPTY);
-                    break;
+                    return upsert(key, ByteBuffer.wrap(request.getBody()));
 
                 case Request.METHOD_DELETE:
-                    dao.remove(key);
-                    response = new Response(Response.ACCEPTED, Response.EMPTY);
-                    break;
+                    return delete(key);
 
                 default:
-                    response = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+                    return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
             }
-            return response;
         } catch (NoSuchElementException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         } catch (IOException e) {
@@ -97,6 +85,25 @@ public class SimpleHttpServer extends HttpServer implements Service {
             return Response.ok(Response.EMPTY);
         }
         return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+    }
+
+    private Response get(@NotNull final ByteBuffer key) throws IOException {
+        final var value = dao.get(key);
+        final var duplicate = value.duplicate();
+        final var body = new byte[duplicate.remaining()];
+        duplicate.get(body);
+        return Response.ok(body);
+    }
+
+    private Response upsert(@NotNull final ByteBuffer key,
+                            @NotNull final ByteBuffer value) throws IOException {
+        dao.upsert(key, value);
+        return new Response(Response.CREATED, Response.EMPTY);
+    }
+
+    private Response delete(@NotNull final ByteBuffer key) throws IOException {
+        dao.remove(key);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     @Override
