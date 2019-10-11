@@ -3,12 +3,14 @@ package ru.mail.polis.dao.shakhmin;
 import java.util.NoSuchElementException;
 
 public class NoSuchElementLiteException extends NoSuchElementException {
-    public NoSuchElementLiteException(String s) {
+    public NoSuchElementLiteException(final String s) {
         super(s);
     }
 
     @Override
-    public synchronized Throwable fillInStackTrace() {
-        return this;
+    public Throwable fillInStackTrace() {
+        synchronized(NoSuchElementLiteException.class){
+            return this;
+        }
     }
 }

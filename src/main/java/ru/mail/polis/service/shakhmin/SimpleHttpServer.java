@@ -1,7 +1,14 @@
 package ru.mail.polis.service.shakhmin;
 
 import com.google.common.base.Charsets;
-import one.nio.http.*;
+
+import one.nio.http.HttpServer;
+import one.nio.http.HttpSession;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.http.Param;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
@@ -21,6 +28,23 @@ public class SimpleHttpServer extends HttpServer implements Service {
         this.dao = dao;
     }
 
+    /**
+     * This endpoint handles the request to insert, delete
+     * and retrieve data from the storage.
+     * @param request request
+     * @param id id of resource
+     * @return
+     *  <p>
+     *      <ul>
+     *          <li> 200 if GET request and resource is found;
+     *          <li> 201 if PUT request and resource is saved to storage;
+     *          <li> 202 if DELETE request and resource is removed from storage;
+     *          <li> 404 if resource with {@code id} is not found;
+     *          <li> 405 if method not allowed;
+     *          <li> 500 if internal error;
+     *      </ul>
+     *  <p>
+     */
     @Path("/v0/entity")
     public Response entity(final Request request,
                            @Param("id") final String id) {
@@ -28,27 +52,33 @@ public class SimpleHttpServer extends HttpServer implements Service {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+        final var key = ByteBuffer.wrap(id.getBytes(Charsets.UTF_8));
+
         try {
+            Response response;
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
                     final var value = dao.get(key);
                     final var duplicate = value.duplicate();
                     final var body = new byte[duplicate.remaining()];
                     duplicate.get(body);
-                    return Response.ok(body);
+                    response = Response.ok(body);
+                    break;
 
                 case Request.METHOD_PUT:
                     dao.upsert(key, ByteBuffer.wrap(request.getBody()));
-                    return new Response(Response.CREATED, Response.EMPTY);
+                    response = new Response(Response.CREATED, Response.EMPTY);
+                    break;
 
                 case Request.METHOD_DELETE:
                     dao.remove(key);
-                    return new Response(Response.ACCEPTED, Response.EMPTY);
+                    response = new Response(Response.ACCEPTED, Response.EMPTY);
+                    break;
 
                 default:
-                    return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+                    response = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
             }
+            return response;
         } catch (NoSuchElementException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         } catch (IOException e) {
@@ -56,6 +86,11 @@ public class SimpleHttpServer extends HttpServer implements Service {
         }
     }
 
+    /**
+     * This endpoint return information about the status of server.
+     * @param request request
+     * @return 200 if GET request and 405 otherwise
+     */
     @Path("/v0/status")
     public Response status(final Request request) {
         if (request.getMethod() == Request.METHOD_GET) {

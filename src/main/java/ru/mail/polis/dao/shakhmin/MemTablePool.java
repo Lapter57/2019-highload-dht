@@ -1,5 +1,6 @@
 package ru.mail.polis.dao.shakhmin;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
@@ -9,7 +10,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
-import java.util.concurrent.*;
+
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -17,12 +24,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import static ru.mail.polis.dao.shakhmin.Value.EMPTY_DATA;
 
 public class MemTablePool implements Table, Closeable {
+    private static final ByteBuffer LOWEST_KEY = ByteBuffer.allocate(0);
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private volatile MemTable current;
-    private NavigableMap<Long, Table> pendingToFlush;
-    private NavigableMap<Long, Iterator<Row>> pendingToCompact;
-    private BlockingQueue<TableToFlush> flushQueue;
+    private final NavigableMap<Long, Table> pendingToFlush;
+    private final NavigableMap<Long, Iterator<Row>> pendingToCompact;
+    private final BlockingQueue<TableToFlush> flushQueue;
     private long serialNumber;
 
     @NotNull private final ExecutorService flusher;
@@ -31,6 +39,15 @@ public class MemTablePool implements Table, Closeable {
     private final long flushThresholdInBytes;
     private final AtomicBoolean isClosed;
 
+    /**
+     * Construct a new memory table pool for
+     * thread safe work with a memory table.
+     *
+     * @param flushThresholdInBytes threshold of size of Memtable
+     * @param startSerialNumber next flushing table serial number
+     * @param nThreadsToFlush number of threads to flush tables
+     * @param flushingTask task to be performed when a table appears for flushing to disk
+     */
     public MemTablePool(final long flushThresholdInBytes,
                         final long startSerialNumber,
                         final int nThreadsToFlush,
@@ -43,7 +60,9 @@ public class MemTablePool implements Table, Closeable {
         this.isClosed = new AtomicBoolean();
         this.pendingToCompact = new TreeMap<>();
 
-        this.flusher = Executors.newFixedThreadPool(nThreadsToFlush);
+        this.flusher = Executors.newFixedThreadPool(
+                nThreadsToFlush,
+                new ThreadFactoryBuilder().setNameFormat("flusher-%d").build());
         this.flushingTask = flushingTask;
     }
 
@@ -53,11 +72,11 @@ public class MemTablePool implements Table, Closeable {
         lock.readLock().lock();
         final List<Iterator<Row>> iterators;
         try {
-            iterators = Table.combineTables(current, pendingToFlush, from);
+            iterators = Table.joinIterators(current, pendingToFlush, from);
         } finally {
             lock.readLock().unlock();
         }
-        return Table.transformRows(iterators);
+        return Table.reduceIterators(iterators);
     }
 
     @Override
@@ -133,6 +152,11 @@ public class MemTablePool implements Table, Closeable {
         return flushQueue.take();
     }
 
+    /**
+     * Remove a table pending to be flushed to disk.
+     *
+     * @param serialNumber serial number of table
+     */
     public void flushed(final long serialNumber) {
         lock.writeLock().lock();
         try {
@@ -142,17 +166,28 @@ public class MemTablePool implements Table, Closeable {
         }
     }
 
+    /**
+     * Compact SStables.
+     *
+     * @param ssTables SStables
+     * @throws IOException
+     */
     public void compact(@NotNull final NavigableMap<Long, Table> ssTables) throws IOException {
         lock.readLock().lock();
         final List<Iterator<Row>> iterators;
         try {
-            iterators = Table.combineTables(current, ssTables, LOWEST_KEY);
+            iterators = Table.joinIterators(current, ssTables, LOWEST_KEY);
         } finally {
             lock.readLock().unlock();
         }
-        setCompactTableToFlush(Table.transformRows(iterators));
+        setCompactTableToFlush(Table.reduceIterators(iterators));
     }
 
+    /**
+     * Remove a compacted table pending to be flushed to disk.
+     *
+     * @param serialNumber serial number of table
+     */
     public void compacted(final long serialNumber) {
         lock.writeLock().lock();
         try {

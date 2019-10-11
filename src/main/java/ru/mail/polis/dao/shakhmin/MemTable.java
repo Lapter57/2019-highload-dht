@@ -1,16 +1,14 @@
 package ru.mail.polis.dao.shakhmin;
 
+import org.jetbrains.annotations.NotNull;
+
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.jetbrains.annotations.NotNull;
-
-import javax.annotation.concurrent.ThreadSafe;
 
 @ThreadSafe
 public final class MemTable implements Table {

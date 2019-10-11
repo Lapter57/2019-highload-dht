@@ -19,7 +19,6 @@ import ru.mail.polis.dao.Iters;
  * </p>
  */
 public interface Table {
-    ByteBuffer LOWEST_KEY = ByteBuffer.allocate(0);
 
     @NotNull
     Iterator<Row> iterator(@NotNull ByteBuffer from) throws IOException;
@@ -34,19 +33,35 @@ public interface Table {
 
     long serialNumber();
 
-    static List<Iterator<Row>> combineTables(@NotNull final Table table,
-                                             @NotNull final NavigableMap<Long, Table> otherTables,
+    /**
+     * Join table iterators.
+     *
+     * @param memTable memory table
+     * @param tables other tables with a serial number
+     * @param from starting position for iterators
+     * @return list of iterators of all tables
+     * @throws IOException if an I/O error occurs
+     */
+    static List<Iterator<Row>> joinIterators(@NotNull final Table memTable,
+                                             @NotNull final NavigableMap<Long, Table> tables,
                                              @NotNull final ByteBuffer from) throws IOException {
-        final var memIterator = table.iterator(from);
+        final var memIterator = memTable.iterator(from);
         final List<Iterator<Row>> iterators = new ArrayList<>();
         iterators.add(memIterator);
-        for (final var entity: otherTables.descendingMap().values()) {
+        for (final var entity: tables.descendingMap().values()) {
             iterators.add(entity.iterator(from));
         }
         return iterators;
     }
 
-    static Iterator<Row> transformRows(@NotNull final List<Iterator<Row>> iterators) {
+    /**
+     * Returns an iterator over the merged collapsed filtered
+     * contents of all given {@code iterators}.
+     *
+     * @param iterators list of iterators
+     * @return iterator of unique rows
+     */
+    static Iterator<Row> reduceIterators(@NotNull final List<Iterator<Row>> iterators) {
         final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
         final var collapsed = Iters.collapseEquals(merged, Row::getKey);
         return Iterators.filter(collapsed, r -> !r.getValue().isRemoved());

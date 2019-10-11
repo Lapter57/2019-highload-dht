@@ -14,10 +14,10 @@ public class TableToFlush {
         @NotNull private final Iterator<Row> rows;
         private final long serialNumber;
 
-        private boolean poisonPill = false;
-        private boolean isCompactTable = false;
+        private boolean poisonPill;
+        private boolean isCompactTable;
 
-        public Builder(@NotNull Iterator<Row> rows,
+        public Builder(@NotNull final Iterator<Row> rows,
                        final long serialNumber) {
             this.rows = rows;
             this.serialNumber = serialNumber;
@@ -45,7 +45,7 @@ public class TableToFlush {
         this.isCompactTable = builder.isCompactTable;
     }
 
-    private TableToFlush(@NotNull Iterator<Row> rows,
+    private TableToFlush(@NotNull final Iterator<Row> rows,
                          final long serialNumber) {
         this.serialNumber = serialNumber;
         this.rows = rows;
@@ -53,7 +53,7 @@ public class TableToFlush {
         this.isCompactTable = false;
     }
 
-    public static TableToFlush of(@NotNull Iterator<Row> rows,
+    public static TableToFlush of(@NotNull final Iterator<Row> rows,
                                   final long serialNumber) {
         return new TableToFlush(rows, serialNumber);
     }

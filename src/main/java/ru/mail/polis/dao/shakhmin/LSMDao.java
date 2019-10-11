@@ -116,8 +116,8 @@ public final class LSMDao implements DAO {
 
     @NotNull
     private Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
-        final var iterators = Table.combineTables(memTable, ssTables, from);
-        return Table.transformRows(iterators);
+        final var iterators = Table.joinIterators(memTable, ssTables, from);
+        return Table.reduceIterators(iterators);
     }
 
     @Override
