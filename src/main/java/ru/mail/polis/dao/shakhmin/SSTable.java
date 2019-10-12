@@ -13,7 +13,6 @@ import java.util.NoSuchElementException;
 
 import org.jetbrains.annotations.NotNull;
 
-
 public final class SSTable implements Table {
 
     @NotNull private final LongBuffer offsets;

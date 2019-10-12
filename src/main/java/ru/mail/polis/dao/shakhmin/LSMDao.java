@@ -19,7 +19,8 @@ import java.util.Iterator;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
-
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public final class LSMDao implements DAO {
     private static final Logger log = LoggerFactory.getLogger(LSMDao.class);
@@ -31,6 +32,7 @@ public final class LSMDao implements DAO {
     @NotNull private MemTablePool memTable;
     @NotNull private NavigableMap<Long, Table> ssTables = new ConcurrentSkipListMap<>();
     @NotNull private final File flushDir;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     class FlushingTask implements Runnable {
 
@@ -166,28 +168,38 @@ public final class LSMDao implements DAO {
 
     private void completeCompaction(final long serialNumber) throws IOException {
         log.info("Compaction is done. Serial number of compact table is [{}]", serialNumber);
-        ssTables = new ConcurrentSkipListMap<>();
+        lock.writeLock().lock();
+        try {
+            ssTables = new ConcurrentSkipListMap<>();
+        } finally {
+            lock.writeLock().unlock();
+        }
         cleanDirectory(serialNumber);
     }
 
     private void cleanDirectory(final long serialNumber) throws IOException {
-        Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(
-                    final Path path,
-                    final BasicFileAttributes attrs) throws IOException {
-                final File file = path.toFile();
-                if (file.getName().matches(REGEX)) {
-                    final String fileName = file.getName().split("\\.")[0];
-                    final long sn = Long.parseLong(fileName.split("_")[1]);
-                    if (sn >= serialNumber) {
-                        ssTables.put(sn, new SSTable(file.toPath(), sn));
-                        return FileVisitResult.CONTINUE;
+        lock.writeLock().lock();
+        try {
+            Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(
+                        final Path path,
+                        final BasicFileAttributes attrs) throws IOException {
+                    final File file = path.toFile();
+                    if (file.getName().matches(REGEX)) {
+                        final String fileName = file.getName().split("\\.")[0];
+                        final long sn = Long.parseLong(fileName.split("_")[1]);
+                        if (sn >= serialNumber) {
+                            ssTables.put(sn, new SSTable(file.toPath(), sn));
+                            return FileVisitResult.CONTINUE;
+                        }
                     }
+                    Files.delete(path);
+                    return FileVisitResult.CONTINUE;
                 }
-                Files.delete(path);
-                return FileVisitResult.CONTINUE;
-            }
-        });
+            });
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 }
