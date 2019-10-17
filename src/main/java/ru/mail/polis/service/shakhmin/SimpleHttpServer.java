@@ -20,6 +20,7 @@ import java.util.NoSuchElementException;
 
 public class SimpleHttpServer extends HttpServer implements Service {
 
+    @NotNull
     private final DAO dao;
 
     public SimpleHttpServer(final int port,
