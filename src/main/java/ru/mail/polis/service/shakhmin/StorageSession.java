@@ -66,7 +66,7 @@ final class StorageSession extends HttpSession {
             write(chunk, 0, chunkLength);
         }
 
-        if (records.hasNext()) {
+        if (!records.hasNext()) {
             write(EMPTY_CHUNK, 0, EMPTY_CHUNK.length);
 
             server.incRequestsProcessed();
