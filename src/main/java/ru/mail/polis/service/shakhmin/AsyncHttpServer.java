@@ -46,24 +46,16 @@ public class AsyncHttpServer extends HttpServer implements Service {
      * This endpoint handles the request to insert, delete
      * and retrieve data from the storage.
      *
+     * @param session http session
      * @param request request
      * @param id id of resource
-     * @return
-     *     <ul>
-     *      <li> 200 if GET request and resource is found;
-     *      <li> 201 if PUT request and resource is saved to storage;
-     *      <li> 202 if DELETE request and resource is removed from storage;
-     *      <li> 404 if resource with {@code id} is not found;
-     *      <li> 405 if method not allowed;
-     *      <li> 500 if internal error;
-     *     </ul>
      */
     @Path("/v0/entity")
     public void entity(final HttpSession session,
                        final Request request,
-                       @Param("id") final String id) throws IOException {
+                       @Param("id") final String id) {
         if (id == null || id.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, "No id");
+            sendResponse(session, Response.BAD_REQUEST);
             return;
         }
 
@@ -82,25 +74,34 @@ public class AsyncHttpServer extends HttpServer implements Service {
                     return;
 
                 default:
-                    session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
+                    sendResponse(session, Response.METHOD_NOT_ALLOWED);
             }
         } catch (Exception e) {
-            session.sendError(Response.INTERNAL_ERROR, "Internal error");
+            sendResponse(session, Response.BAD_REQUEST);
         }
     }
 
+    /**
+     * This endpoint handles the request
+     * retrieve range of data from the storage.
+     *
+     * @param session http session
+     * @param request request
+     * @param start start point of range data
+     * @param end end point of range data
+     */
     @Path("/v0/entities")
-    public void entities(final Request request,
-                         final HttpSession session,
+    public void entities(final HttpSession session,
+                         final Request request,
                          @Param("start") final String start,
-                         @Param("end") String end) throws IOException {
+                         @Param("end") String end) {
         if (start == null || start.isEmpty()) {
-            session.sendError(Response.BAD_REQUEST, "No start");
+            sendResponse(session, Response.BAD_REQUEST);
             return;
         }
 
         if (request.getMethod() != Request.METHOD_GET) {
-            session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
+            sendResponse(session, Response.METHOD_NOT_ALLOWED);
             return;
         }
 
@@ -108,11 +109,15 @@ public class AsyncHttpServer extends HttpServer implements Service {
             end = null;
         }
 
-        final Iterator<Record> records =
-                dao.range(
-                        ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
-                        end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
-        ((StorageSession) session).stream(records);
+        try {
+            final Iterator<Record> records =
+                    dao.range(
+                            ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
+                            end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
+            ((StorageSession) session).stream(records);
+        } catch (IOException e) {
+            sendResponse(session, Response.INTERNAL_ERROR);
+        }
     }
 
     /**
@@ -126,6 +131,19 @@ public class AsyncHttpServer extends HttpServer implements Service {
             return Response.ok(Response.EMPTY);
         }
         return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+    }
+
+    private void sendResponse(@NotNull final HttpSession session,
+                              @NotNull final String responseType) {
+        try {
+            session.sendResponse(new Response(responseType, Response.EMPTY));
+        } catch (IOException e) {
+            try {
+                session.sendError(Response.INTERNAL_ERROR, "Internal error");
+            } catch (IOException ex) {
+                log.error("Error with send response {}", ex.getMessage());
+            }
+        }
     }
 
     private Response get(@NotNull final String id) {
