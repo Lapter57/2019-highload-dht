@@ -1,5 +1,6 @@
 package ru.mail.polis.service.shakhmin;
 
+import com.google.common.base.Charsets;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Response;
@@ -12,12 +13,11 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 final class StorageSession extends HttpSession {
-    private static final byte[] CRLF = "\r\n".getBytes();
+    private static final byte[] CRLF = "\r\n".getBytes(Charsets.UTF_8);
     private static final byte LF = '\n';
-    private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes();
+    private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(Charsets.UTF_8);
 
     private Iterator<Record> records;
-
 
     StorageSession(@NotNull final Socket socket,
                           @NotNull final HttpServer server) {
@@ -57,7 +57,7 @@ final class StorageSession extends HttpSession {
             final int chunkLength = size.length() + 2 + payloadLength + 2;
             final var chunk = new byte[chunkLength];
             final var buffer = ByteBuffer.wrap(chunk);
-            buffer.put(size.getBytes());
+            buffer.put(size.getBytes(Charsets.UTF_8));
             buffer.put(CRLF);
             buffer.put(key);
             buffer.put(LF);

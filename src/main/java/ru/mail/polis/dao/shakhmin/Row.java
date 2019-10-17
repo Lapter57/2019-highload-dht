@@ -50,7 +50,7 @@ public final class Row implements Comparable<Row> {
     public static long getSizeOfFlushedRow(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
-        return Integer.BYTES + key.remaining() + Long.BYTES
+        return ((long) Integer.BYTES) + key.remaining() + Long.BYTES
                 + (value.remaining() == 0 ? 0 : Long.BYTES + value.remaining());
     }
 

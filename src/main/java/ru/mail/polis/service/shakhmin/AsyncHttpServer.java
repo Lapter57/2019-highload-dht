@@ -10,7 +10,6 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
-import one.nio.server.RejectedSessionException;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,14 +32,14 @@ public class AsyncHttpServer extends HttpServer implements Service {
     private final DAO dao;
 
     @NotNull
-    private final Executor workers;
+    private final Executor serverWorkers;
 
     public AsyncHttpServer(final int port,
                            @NotNull final DAO dao,
                            @NotNull final Executor workers) throws IOException {
         super(getConfig(port));
         this.dao = dao;
-        this.workers = workers;
+        this.serverWorkers = workers;
     }
 
     /**
@@ -76,9 +75,11 @@ public class AsyncHttpServer extends HttpServer implements Service {
 
                 case Request.METHOD_PUT:
                     executeAsync(session, () -> upsert(id, ByteBuffer.wrap(request.getBody())));
+                    return;
 
                 case Request.METHOD_DELETE:
                     executeAsync(session, () -> delete(id));
+                    return;
 
                 default:
                     session.sendError(Response.METHOD_NOT_ALLOWED, "Method not allowed");
@@ -109,8 +110,8 @@ public class AsyncHttpServer extends HttpServer implements Service {
 
         final Iterator<Record> records =
                 dao.range(
-                        ByteBuffer.wrap(start.getBytes()),
-                        end == null ? null : ByteBuffer.wrap(end.getBytes()));
+                        ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
+                        end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
         ((StorageSession) session).stream(records);
     }
 
@@ -179,7 +180,7 @@ public class AsyncHttpServer extends HttpServer implements Service {
 
     private void executeAsync(@NotNull final HttpSession session,
                               @NotNull final Supplier<Response> action) {
-        workers.execute(() -> {
+        serverWorkers.execute(() -> {
             try {
                 session.sendResponse(action.get());
             } catch (IOException e) {
