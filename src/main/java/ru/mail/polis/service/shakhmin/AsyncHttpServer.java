@@ -82,6 +82,7 @@ public class AsyncHttpServer extends HttpServer implements Service {
 
             default:
                 sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
+                break;
         }
     }
 
@@ -98,7 +99,7 @@ public class AsyncHttpServer extends HttpServer implements Service {
     public void entities(final HttpSession session,
                          final Request request,
                          @Param("start") final String start,
-                         @Param("end") String end) {
+                         @Param("end") final String end) {
         if (start == null || start.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
