@@ -16,6 +16,7 @@ final class StorageSession extends HttpSession {
     private static final byte[] CRLF = "\r\n".getBytes(Charsets.UTF_8);
     private static final byte LF = '\n';
     private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(Charsets.UTF_8);
+    private static final String RESPONSE_CHUNK_HEADER = "Transfer-Encoding: chunked";
 
     private Iterator<Record> records;
 
@@ -27,7 +28,7 @@ final class StorageSession extends HttpSession {
     void stream(@NotNull final Iterator<Record> records) throws IOException {
         this.records = records;
         final var response = new Response(Response.OK);
-        response.addHeader("Transfer-Encoding: chunked");
+        response.addHeader(RESPONSE_CHUNK_HEADER);
         writeResponse(response, false);
         next();
     }

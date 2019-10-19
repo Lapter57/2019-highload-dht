@@ -10,10 +10,7 @@ public class NoSuchElementLiteException extends NoSuchElementException {
     }
 
     @Override
-    @SuppressWarnings("UnsynchronizedOverridesSynchronized") // synchronized on the monitor object
-    public Throwable fillInStackTrace() {
-        synchronized(NoSuchElementLiteException.class){
-            return this;
-        }
+    public synchronized Throwable fillInStackTrace() {
+        return this;
     }
 }

@@ -55,7 +55,7 @@ public class AsyncHttpServer extends HttpServer implements Service {
                        final Request request,
                        @Param("id") final String id) {
         if (id == null || id.isEmpty()) {
-            sendResponse(session, Response.BAD_REQUEST);
+            sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
 
@@ -74,10 +74,10 @@ public class AsyncHttpServer extends HttpServer implements Service {
                     return;
 
                 default:
-                    sendResponse(session, Response.METHOD_NOT_ALLOWED);
+                    sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
             }
         } catch (Exception e) {
-            sendResponse(session, Response.BAD_REQUEST);
+            sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
         }
     }
 
@@ -96,12 +96,12 @@ public class AsyncHttpServer extends HttpServer implements Service {
                          @Param("start") final String start,
                          @Param("end") String end) {
         if (start == null || start.isEmpty()) {
-            sendResponse(session, Response.BAD_REQUEST);
+            sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
 
         if (request.getMethod() != Request.METHOD_GET) {
-            sendResponse(session, Response.METHOD_NOT_ALLOWED);
+            sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
             return;
         }
 
@@ -116,27 +116,24 @@ public class AsyncHttpServer extends HttpServer implements Service {
                             end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
-            sendResponse(session, Response.INTERNAL_ERROR);
+            sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
         }
     }
 
     /**
      * This endpoint return information about the status of server.
-     * @param request request
-     * @return 200 if GET request and 405 otherwise
+     *
+     * @return 200 OK
      */
     @Path("/v0/status")
-    public Response status(final Request request) {
-        if (request.getMethod() == Request.METHOD_GET) {
-            return Response.ok(Response.EMPTY);
-        }
-        return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+    public Response status() {
+        return new Response(Response.OK, Response.EMPTY);
     }
 
     private void sendResponse(@NotNull final HttpSession session,
-                              @NotNull final String responseType) {
+                              @NotNull final Response response) {
         try {
-            session.sendResponse(new Response(responseType, Response.EMPTY));
+            session.sendResponse(response);
         } catch (IOException e) {
             try {
                 session.sendError(Response.INTERNAL_ERROR, "Internal error");
@@ -198,17 +195,7 @@ public class AsyncHttpServer extends HttpServer implements Service {
 
     private void executeAsync(@NotNull final HttpSession session,
                               @NotNull final Supplier<Response> action) {
-        serverWorkers.execute(() -> {
-            try {
-                session.sendResponse(action.get());
-            } catch (IOException e) {
-                try {
-                    session.sendError(Response.INTERNAL_ERROR, "");
-                } catch (IOException ex) {
-                    log.error("Error with send response {}", ex.getMessage());
-                }
-            }
-        });
+        serverWorkers.execute(() -> sendResponse(session, action.get()));
     }
 
     private static HttpServerConfig getConfig(final int port) {
