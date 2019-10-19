@@ -1,10 +1,14 @@
-counter1 = 0
-counter2 = 1
+startCounter = 0
+endCounter = 1
 
 request = function()
-    path = "/v0/entities?start=key" .. counter1 .. "&end=key" .. counter2
+    path = "/v0/entities?start=key" .. startCounter .. "&end=key" .. endCounter
     wrk.method = "GET"
-    counter1 = counter1 + 1
-    counter2 = counter2 + 1
+    startCounter = startCounter + 1
+    endCounter = endCounter + 1
+    if startCounter > 10 then
+        startCounter = 0
+        endCounter = 1
+    end
     return wrk.format(nil, path)
 end
