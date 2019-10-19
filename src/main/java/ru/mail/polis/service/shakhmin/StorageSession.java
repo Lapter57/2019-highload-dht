@@ -49,22 +49,8 @@ final class StorageSession extends HttpSession {
     private void next() throws IOException {
         while (records.hasNext() && queueHead == null) {
             final var record = records.next();
-            final var key = toByteArray(record.getKey());
-            final var value = toByteArray(record.getValue());
-
-            final int payloadLength = key.length + 1 + value.length;
-            final var size = Integer.toHexString(payloadLength);
-
-            final int chunkLength = size.length() + 2 + payloadLength + 2;
-            final var chunk = new byte[chunkLength];
-            final var buffer = ByteBuffer.wrap(chunk);
-            buffer.put(size.getBytes(Charsets.UTF_8));
-            buffer.put(CRLF);
-            buffer.put(key);
-            buffer.put(LF);
-            buffer.put(value);
-            buffer.put(CRLF);
-            write(chunk, 0, chunkLength);
+            final var chunk = createChunk(record);
+            write(chunk, 0, chunk.length);
         }
 
         if (!records.hasNext()) {
@@ -84,5 +70,25 @@ final class StorageSession extends HttpSession {
                 }
             }
         }
+    }
+
+    private static byte[] createChunk(@NotNull final Record record) {
+        final var key = toByteArray(record.getKey());
+        final var value = toByteArray(record.getValue());
+
+        final int payloadLength = key.length + 1 + value.length;
+        final var size = Integer.toHexString(payloadLength);
+
+        final int chunkLength = size.length() + 2 + payloadLength + 2;
+        final var chunk = new byte[chunkLength];
+        final var buffer = ByteBuffer.wrap(chunk);
+        buffer.put(size.getBytes(Charsets.UTF_8));
+        buffer.put(CRLF);
+        buffer.put(key);
+        buffer.put(LF);
+        buffer.put(value);
+        buffer.put(CRLF);
+
+        return chunk;
     }
 }

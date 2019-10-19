@@ -34,6 +34,14 @@ public class AsyncHttpServer extends HttpServer implements Service {
     @NotNull
     private final Executor serverWorkers;
 
+    /**
+     * Creates an asynchronous http server for working with storage.
+     *
+     * @param port port of server
+     * @param dao storage
+     * @param workers thread pool for request processing
+     * @throws IOException if an I/O error occurs
+     */
     public AsyncHttpServer(final int port,
                            @NotNull final DAO dao,
                            @NotNull final Executor workers) throws IOException {
@@ -59,25 +67,21 @@ public class AsyncHttpServer extends HttpServer implements Service {
             return;
         }
 
-        try {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    executeAsync(session, () -> get(id));
-                    return;
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                executeAsync(session, () -> get(id));
+                break;
 
-                case Request.METHOD_PUT:
-                    executeAsync(session, () -> upsert(id, ByteBuffer.wrap(request.getBody())));
-                    return;
+            case Request.METHOD_PUT:
+                executeAsync(session, () -> upsert(id, ByteBuffer.wrap(request.getBody())));
+                break;
 
-                case Request.METHOD_DELETE:
-                    executeAsync(session, () -> delete(id));
-                    return;
+            case Request.METHOD_DELETE:
+                executeAsync(session, () -> delete(id));
+                break;
 
-                default:
-                    sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
-            }
-        } catch (Exception e) {
-            sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
+            default:
+                sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
         }
     }
 
@@ -105,15 +109,11 @@ public class AsyncHttpServer extends HttpServer implements Service {
             return;
         }
 
-        if (end != null && end.isEmpty()) {
-            end = null;
-        }
-
         try {
             final Iterator<Record> records =
                     dao.range(
                             ByteBuffer.wrap(start.getBytes(Charsets.UTF_8)),
-                            end == null ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
+                            end == null || end.isEmpty() ? null : ByteBuffer.wrap(end.getBytes(Charsets.UTF_8)));
             ((StorageSession) session).stream(records);
         } catch (IOException e) {
             sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
