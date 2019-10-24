@@ -68,8 +68,8 @@ public class MemTablePool implements Table, Closeable {
     @NotNull
     @Override
     public Iterator<Row> iterator(@NotNull final ByteBuffer from) throws IOException {
-        lock.readLock().lock();
         final List<Iterator<Row>> iterators;
+        lock.readLock().lock();
         try {
             iterators = Table.joinIterators(current, pendingToFlush, from);
         } finally {
@@ -110,8 +110,8 @@ public class MemTablePool implements Table, Closeable {
     private void setToFlush(@NotNull final ByteBuffer key) throws IOException {
         if (current.sizeInBytes()
                 + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
-            lock.writeLock().lock();
             TableToFlush tableToFlush = null;
+            lock.writeLock().lock();
             try {
                 if (current.sizeInBytes()
                         + Row.getSizeOfFlushedRow(key, EMPTY_DATA) >= flushThresholdInBytes) {
@@ -135,8 +135,8 @@ public class MemTablePool implements Table, Closeable {
     }
 
     private void setCompactTableToFlush(@NotNull final Iterator<Row> rows) throws IOException {
-        lock.writeLock().lock();
         TableToFlush tableToFlush;
+        lock.writeLock().lock();
         try {
             tableToFlush = new TableToFlush
                     .Builder(rows, serialNumber)
@@ -182,8 +182,8 @@ public class MemTablePool implements Table, Closeable {
      * @throws IOException if an I/O error occurs
      */
     public void compact(@NotNull final NavigableMap<Long, Table> ssTables) throws IOException {
-        lock.readLock().lock();
         final List<Iterator<Row>> iterators;
+        lock.readLock().lock();
         try {
             iterators = Table.joinIterators(current, ssTables, LOWEST_KEY);
         } finally {
@@ -235,8 +235,8 @@ public class MemTablePool implements Table, Closeable {
         if (!isClosed.compareAndSet(false, true)) {
             return;
         }
-        lock.writeLock().lock();
         TableToFlush tableToFlush;
+        lock.writeLock().lock();
         try {
             tableToFlush = new TableToFlush
                     .Builder(current.iterator(LOWEST_KEY), serialNumber)

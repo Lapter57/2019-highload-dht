@@ -1,5 +1,7 @@
 package ru.mail.polis.dao.shakhmin;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -89,10 +91,10 @@ public final class LSMDao implements DAO {
             public FileVisitResult visitFile(
                     final Path path,
                     final BasicFileAttributes attrs) throws IOException {
-                final File file = path.toFile();
+                final var file = path.toFile();
                 if (file.getName().matches(REGEX)) {
-                    final String fileName = file.getName().split("\\.")[0];
-                    final long serialNumber = Long.parseLong(fileName.split("_")[1]);
+                    final var fileName = Iterables.get(Splitter.on(".").split(file.getName()), 0);
+                    final long serialNumber = Long.parseLong(Iterables.get(Splitter.on('_').split(fileName), 1));
                     serialNumberSStable.set(
                             Math.max(serialNumberSStable.get(), serialNumber + 1L));
                     ssTables.put(serialNumber, new SSTable(file.toPath(), serialNumber));
@@ -187,8 +189,8 @@ public final class LSMDao implements DAO {
                         final BasicFileAttributes attrs) throws IOException {
                     final File file = path.toFile();
                     if (file.getName().matches(REGEX)) {
-                        final String fileName = file.getName().split("\\.")[0];
-                        final long sn = Long.parseLong(fileName.split("_")[1]);
+                        final var fileName = Iterables.get(Splitter.on(".").split(file.getName()), 0);
+                        final long sn = Long.parseLong(Iterables.get(Splitter.on('_').split(fileName), 1));
                         if (sn >= serialNumber) {
                             ssTables.put(sn, new SSTable(file.toPath(), sn));
                             return FileVisitResult.CONTINUE;
