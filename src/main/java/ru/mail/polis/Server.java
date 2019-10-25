@@ -16,7 +16,6 @@
 
 package ru.mail.polis;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;

@@ -19,7 +19,8 @@ package ru.mail.polis.service;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.shakhmin.AsyncHttpServer;
+import ru.mail.polis.service.shakhmin.ConsistentHashImpl;
+import ru.mail.polis.service.shakhmin.ShardedHttpServer;
 
 import java.io.IOException;
 import java.util.Set;
@@ -59,9 +60,14 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
+        final var nodes =
+                new ConsistentHashImpl(
+                        topology,
+                        "http://localhost:" + port);
+
         final Executor executor =
                 Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1,
                         new ThreadFactoryBuilder().setNameFormat("worker-%d").build());
-        return new AsyncHttpServer(port, dao, executor);
+        return new ShardedHttpServer(port, nodes, dao, executor);
     }
 }
