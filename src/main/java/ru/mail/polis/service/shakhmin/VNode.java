@@ -17,16 +17,16 @@ final class VNode {
         this.address = address;
     }
 
-    long getToken() {
+    public long getToken() {
         return token;
     }
 
     @NotNull
-    String getAddress() {
+    public String getAddress() {
         return address;
     }
 
-    void setAddress(@NotNull String address) {
+    void setAddress(@NotNull final String address) {
         this.address = address;
     }
 
