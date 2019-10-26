@@ -15,12 +15,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-/**
- * See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
- * <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf">
- *     Dynamo: Amazon’s Highly Available Key-value Store
- * </a>
- */
 public final class ConsistentHashImpl implements ConsistentHash {
 
     private static final int PARTITIONS_COUNT = 32;
@@ -38,6 +32,18 @@ public final class ConsistentHashImpl implements ConsistentHash {
     @NotNull
     private final String me;
 
+    /**
+     * This is an implementation of consistent hashing to distribute
+     * the load across multiple storage hosts.
+     *
+     * <p>See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
+     * <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf">
+     *     Dynamo: Amazon’s Highly Available Key-value Store
+     * </a>
+     *
+     * @param nodes set of addresses of nodes
+     * @param me address of current node
+     */
     public ConsistentHashImpl(@NotNull final Set<String> nodes,
                               @NotNull final String me) {
         this.ring = new TreeMap<>();
@@ -60,9 +66,9 @@ public final class ConsistentHashImpl implements ConsistentHash {
     public String primaryFor(@NotNull final ByteBuffer key) {
         final long hashKey = hashFunction.hashBytes(key).asLong();
         final var entry = ring.ceilingEntry(hashKey);
-        return entry != null
-                ? entry.getValue().getAddress()
-                : ring.firstEntry().getValue().getAddress();
+        return entry == null
+                ? ring.firstEntry().getValue().getAddress()
+                : entry.getValue().getAddress();
     }
 
     @Override

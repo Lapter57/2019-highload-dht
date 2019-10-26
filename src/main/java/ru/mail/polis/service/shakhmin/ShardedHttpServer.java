@@ -199,7 +199,7 @@ public class ShardedHttpServer extends HttpServer implements Service {
             return new Response(Response.CREATED, Response.EMPTY);
         } catch (NoSuchElementException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
-        }  catch (IOException e) {
+        } catch (IOException e) {
             return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
     }
@@ -210,7 +210,7 @@ public class ShardedHttpServer extends HttpServer implements Service {
             return new Response(Response.ACCEPTED, Response.EMPTY);
         } catch (NoSuchElementException e) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
-        }  catch (IOException e) {
+        } catch (IOException e) {
             return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
 
