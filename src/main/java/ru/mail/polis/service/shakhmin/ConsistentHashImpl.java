@@ -16,7 +16,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * <p>See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
+ * See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
  * <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf">
  *     Dynamo: Amazon’s Highly Available Key-value Store
  * </a>
