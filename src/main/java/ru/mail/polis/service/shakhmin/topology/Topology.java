@@ -1,4 +1,4 @@
-package ru.mail.polis.service.shakhmin;
+package ru.mail.polis.service.shakhmin.topology;
 
 import org.jetbrains.annotations.NotNull;
 

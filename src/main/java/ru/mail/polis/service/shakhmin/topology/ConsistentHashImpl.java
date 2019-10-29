@@ -1,4 +1,4 @@
-package ru.mail.polis.service.shakhmin;
+package ru.mail.polis.service.shakhmin.topology;
 
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;

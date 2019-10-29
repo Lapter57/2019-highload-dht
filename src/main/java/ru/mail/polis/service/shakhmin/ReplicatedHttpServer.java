@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.shakhmin.LSMDao;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.shakhmin.topology.Topology;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -244,10 +245,12 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.from);
 
+        int acks = 0;
         final var values = new ArrayList<Value>();
         if (replicas.contains(topology.whoAmI())) {
             try {
                 values.add(getValueFor(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8))));
+                acks++;
             } catch (IOException e) {
                 log.error("[{}] Can't get {}", topology.whoAmI(), meta.id, e);
             }
@@ -259,10 +262,11 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
         int failures = 0;
-        while (values.size() < meta.rf.ack && values.size() + failures != replicas.size()) {
+        while (acks + failures != replicas.size()) {
             try {
                 final var response = completionService.take().get();
                 values.add(Value.from(response));
+                acks++;
             } catch (InterruptedException e) {
                 log.error("[{}] Worker was interrupted while proxy", topology.whoAmI(), e);
                 failures++;
@@ -275,7 +279,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
 
-        if (values.size() >= meta.rf.ack) {
+        if (acks >= meta.rf.ack) {
             return Value.transform(Value.merge(values), false);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -314,7 +318,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
         int failures = 0;
-        while (acks < meta.rf.ack && acks + failures != replicas.size()) {
+        while (acks + failures != replicas.size()) {
             try {
                 final var response = completionService.take().get();
                 if (response.getStatus() == 201) {
@@ -370,7 +374,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
         int failures = 0;
-        while (acks < meta.rf.ack && acks + failures != replicas.size()) {
+        while (acks + failures != replicas.size()) {
             try {
                 final var response = completionService.take().get();
                 if (response.getStatus() == 202) {

@@ -19,9 +19,8 @@ package ru.mail.polis.service;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.shakhmin.ConsistentHashImpl;
+import ru.mail.polis.service.shakhmin.topology.ConsistentHashImpl;
 import ru.mail.polis.service.shakhmin.ReplicatedHttpServer;
-import ru.mail.polis.service.shakhmin.ShardedHttpServer;
 
 import java.io.IOException;
 import java.util.Set;

@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.shakhmin.topology.Topology;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
