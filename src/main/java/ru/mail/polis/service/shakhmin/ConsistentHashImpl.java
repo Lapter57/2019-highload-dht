@@ -5,15 +5,7 @@ import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
  * See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
@@ -70,16 +62,51 @@ public final class ConsistentHashImpl implements ConsistentHash {
     @NotNull
     @Override
     public String primaryFor(@NotNull final ByteBuffer key) {
+        return firstReplica(key).getValue().getAddress();
+    }
+
+    @NotNull
+    @Override
+    public List<String> replicas(@NotNull final ByteBuffer key,
+                                 final int from) {
+        if (from > nodes.size()) {
+            throw new IllegalArgumentException(
+                    "Wrong RF: [from = " + from + "] > [ nodesNumber = " + all().size());
+        }
+        final var nodes = new ArrayList<String>();
+        final var firstReplica = firstReplica(key);
+        nodes.add(firstReplica.getValue().getAddress());
+        int cntReplicas = 1;
+        while (cntReplicas != from) {
+            var entry = ring.higherEntry(firstReplica.getKey());
+            entry = entry == null ? ring.firstEntry() : entry;
+            final var replica = entry.getValue().getAddress();
+            if (!nodes.contains(replica)) {
+                nodes.add(replica);
+                cntReplicas++;
+            }
+        }
+        return nodes;
+    }
+
+    @NotNull
+    private Map.Entry<Long, VNode> firstReplica(@NotNull final ByteBuffer key) {
         final long hashKey = hashFunction.hashBytes(key).asLong();
         final var entry = ring.ceilingEntry(hashKey);
         return entry == null
-                ? ring.firstEntry().getValue().getAddress()
-                : entry.getValue().getAddress();
+                ? ring.firstEntry()
+                : entry;
     }
 
     @Override
     public boolean isMe(@NotNull final String node) {
         return me.equals(node);
+    }
+
+    @NotNull
+    @Override
+    public String whoAmI() {
+        return me;
     }
 
     @NotNull
