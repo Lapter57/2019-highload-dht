@@ -44,7 +44,7 @@ public interface Table {
                                              @NotNull final NavigableMap<Long, Table> tables,
                                              @NotNull final ByteBuffer from) throws IOException {
         final var memIterator = memTable.iterator(from);
-        final List<Iterator<Row>> iterators = new ArrayList<>();
+        final var iterators = new ArrayList<Iterator<Row>>();
         iterators.add(memIterator);
         for (final var entity: tables.descendingMap().values()) {
             iterators.add(entity.iterator(from));
@@ -53,7 +53,7 @@ public interface Table {
     }
 
     /**
-     * Returns an iterator over the merged collapsed filtered
+     * Returns an iterator over the merged collapsed
      * contents of all given {@code iterators}.
      *
      * @param iterators list of iterators
@@ -61,7 +61,6 @@ public interface Table {
      */
     static Iterator<Row> reduceIterators(@NotNull final List<Iterator<Row>> iterators) {
         final var merged = Iterators.mergeSorted(iterators, Row::compareTo);
-        final var collapsed = Iters.collapseEquals(merged, Row::getKey);
-        return Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
+        return Iters.collapseEquals(merged, Row::getKey);
     }
 }

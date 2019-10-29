@@ -113,13 +113,14 @@ public final class LSMDao implements DAO {
     @NotNull
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
-        final var alive = rowsIterator(from);
+        final var collapsed = rowsIterator(from);
+        final var alive = Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
         return Iterators.transform(alive,
                 r -> Record.of(r.getKey(), r.getValue().getData()));
     }
 
     @NotNull
-    private Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
+    public Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
         final var iterators = Table.joinIterators(memTable, ssTables, from);
         return Table.reduceIterators(iterators);
     }

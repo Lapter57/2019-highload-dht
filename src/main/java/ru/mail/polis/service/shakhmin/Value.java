@@ -4,13 +4,11 @@ import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.util.Collection;
-import java.util.Comparator;
 
 import static ru.mail.polis.service.shakhmin.ReplicatedHttpServer.TIMESTAMP_HEADER;
 
-final class Value {
+final class Value implements Comparable<Value> {
 
     private static final Value ABSENT = new Value(null, -1, State.ABSENT);
 
@@ -26,20 +24,24 @@ final class Value {
         this.state = state;
     }
 
+    @NotNull
     static Value present(@NotNull final byte[] data,
                          final long timestamp) {
         return new Value(data, timestamp, State.PRESENT);
     }
 
+    @NotNull
     static Value removed(final long timestamp) {
-        return new Value(null, timestamp, State.REMOVED);
+        return new Value(null, Math.abs(timestamp), State.REMOVED);
     }
 
+    @NotNull
     static Value absent() {
         return ABSENT;
     }
 
-    public static Value from(@NotNull final Response response) throws IOException {
+    @NotNull
+    public static Value from(@NotNull final Response response) {
         final var timestamp = response.getHeader(TIMESTAMP_HEADER);
         if (response.getStatus() == 200) {
             if (timestamp == null) {
@@ -53,10 +55,11 @@ final class Value {
                 return removed(Long.parseLong(timestamp));
             }
         } else {
-            throw new IOException();
+            throw new IllegalArgumentException("Bad response");
         }
     }
 
+    @NotNull
     public static Response transform(@NotNull final Value value,
                                      final boolean proxied) {
         Response result;
@@ -83,7 +86,7 @@ final class Value {
     static Value merge(@NotNull final Collection<Value> values) {
         return values.stream()
                 .filter(v -> v.getState() != State.ABSENT)
-                .max(Comparator.comparingLong(Value::getTimestamp))
+                .max(Value::compareTo)
                 .orElseGet(Value::absent);
     }
 
@@ -99,6 +102,11 @@ final class Value {
     @NotNull
     State getState() {
         return state;
+    }
+
+    @Override
+    public int compareTo(@NotNull final Value value) {
+        return Long.compare(Math.abs(timestamp), Math.abs(value.timestamp));
     }
 
     private enum State {

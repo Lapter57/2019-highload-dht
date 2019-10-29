@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.shakhmin.ConsistentHashImpl;
+import ru.mail.polis.service.shakhmin.ReplicatedHttpServer;
 import ru.mail.polis.service.shakhmin.ShardedHttpServer;
 
 import java.io.IOException;
@@ -68,6 +69,6 @@ public final class ServiceFactory {
         final Executor executor =
                 Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1,
                         new ThreadFactoryBuilder().setNameFormat("worker-%d").build());
-        return new ShardedHttpServer(port, nodes, dao, executor);
+        return new ReplicatedHttpServer(port, nodes, dao, executor);
     }
 }

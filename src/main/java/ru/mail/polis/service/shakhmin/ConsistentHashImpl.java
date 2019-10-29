@@ -73,20 +73,23 @@ public final class ConsistentHashImpl implements ConsistentHash {
             throw new IllegalArgumentException(
                     "Wrong RF: [from = " + from + "] > [ nodesNumber = " + all().size());
         }
-        final var nodes = new ArrayList<String>();
+        final var replicas = new ArrayList<String>();
         final var firstReplica = firstReplica(key);
-        nodes.add(firstReplica.getValue().getAddress());
+        replicas.add(firstReplica.getValue().getAddress());
         int cntReplicas = 1;
+        var iter = ring.tailMap(firstReplica.getKey()).values().iterator();
         while (cntReplicas != from) {
-            var entry = ring.higherEntry(firstReplica.getKey());
-            entry = entry == null ? ring.firstEntry() : entry;
-            final var replica = entry.getValue().getAddress();
-            if (!nodes.contains(replica)) {
-                nodes.add(replica);
+            if (!iter.hasNext()) {
+                iter = ring.values().iterator();
+            }
+            var vNode = iter.next();
+            final var replica = vNode.getAddress();
+            if (!replicas.contains(replica)) {
+                replicas.add(replica);
                 cntReplicas++;
             }
         }
-        return nodes;
+        return replicas;
     }
 
     @NotNull
