@@ -21,7 +21,6 @@ import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.shakhmin.ConsistentHashImpl;
 import ru.mail.polis.service.shakhmin.ShardedHttpServer;
-
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -48,10 +47,9 @@ public final class ServiceFactory {
      * @return a storage instance
      */
     @NotNull
-    public static Service create(
-            final int port,
-            @NotNull final DAO dao,
-            @NotNull final Set<String> topology) throws IOException {
+    public static Service create(final int port,
+                                 @NotNull final DAO dao,
+                                 @NotNull final Set<String> topology) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }

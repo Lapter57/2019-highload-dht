@@ -18,9 +18,7 @@ package ru.mail.polis;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.dao.DAO;
 
 /**

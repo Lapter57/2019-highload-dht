@@ -3,7 +3,6 @@ package ru.mail.polis.service.shakhmin;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;

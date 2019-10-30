@@ -20,7 +20,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.shakhmin.NoSuchElementLiteException;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -51,9 +50,8 @@ public interface DAO extends Closeable {
      * one should not "seek" to start point ("from" element) in linear time ;)
      */
     @NotNull
-    default Iterator<Record> range(
-            @NotNull ByteBuffer from,
-            @Nullable ByteBuffer to) throws IOException {
+    default Iterator<Record> range(@NotNull ByteBuffer from,
+                                   @Nullable ByteBuffer to) throws IOException {
         if (to == null) {
             return iterator(from);
         }
@@ -89,9 +87,8 @@ public interface DAO extends Closeable {
     /**
      * Inserts or updates value by given key.
      */
-    void upsert(
-            @NotNull ByteBuffer key,
-            @NotNull ByteBuffer value) throws IOException;
+    void upsert(@NotNull ByteBuffer key,
+                @NotNull ByteBuffer value) throws IOException;
 
     /**
      * Removes value by given key.

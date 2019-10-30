@@ -19,9 +19,7 @@ package ru.mail.polis.dao;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
-
 import org.jetbrains.annotations.NotNull;
-
 import com.google.common.base.Functions;
 
 /**
@@ -52,15 +50,13 @@ public final class Iters {
         return (Iterator<E>) EMPTY;
     }
 
-    public static <E extends Comparable<E>> Iterator<E> until(
-            @NotNull final Iterator<E> iter,
-            @NotNull final E until) {
+    public static <E extends Comparable<E>> Iterator<E> until(@NotNull final Iterator<E> iter,
+                                                              @NotNull final E until) {
         return new UntilIterator<>(iter, until);
     }
 
-    public static <E> Iterator<E> collapseEquals(
-            @NotNull final Iterator<E> iter,
-            @NotNull final Function<E, ?> byKey) {
+    public static <E> Iterator<E> collapseEquals(@NotNull final Iterator<E> iter,
+                                                 @NotNull final Function<E, ?> byKey) {
         return new CollapseEqualsIterator<>(iter, byKey);
     }
 
@@ -103,9 +99,8 @@ public final class Iters {
 
         private E next;
 
-        CollapseEqualsIterator(
-                @NotNull final Iterator<E> iter,
-                @NotNull final Function<E, ?> keyExtractor) {
+        CollapseEqualsIterator(@NotNull final Iterator<E> iter,
+                               @NotNull final Function<E, ?> keyExtractor) {
             this.iter = iter;
             this.keyExtractor = keyExtractor;
             this.next = iter.hasNext() ? iter.next() : null;

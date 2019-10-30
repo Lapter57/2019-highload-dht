@@ -1,7 +1,6 @@
 package ru.mail.polis.dao.shakhmin;
 
 import java.nio.ByteBuffer;
-
 import org.jetbrains.annotations.NotNull;
 
 public final class Value implements Comparable<Value> {
@@ -13,17 +12,15 @@ public final class Value implements Comparable<Value> {
     @NotNull
     private final ByteBuffer data;
 
-    private Value(
-            final long timestamp,
-            @NotNull final ByteBuffer data) {
+    private Value(final long timestamp,
+                  @NotNull final ByteBuffer data) {
         this.timestamp = timestamp;
         this.data = data;
     }
 
     @NotNull
-    public static Value of(
-            final long timestamp,
-            @NotNull final ByteBuffer data) {
+    public static Value of(final long timestamp,
+                           @NotNull final ByteBuffer data) {
         return new Value(timestamp, data);
     }
 
