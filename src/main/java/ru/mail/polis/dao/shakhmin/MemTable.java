@@ -1,7 +1,6 @@
 package ru.mail.polis.dao.shakhmin;
 
 import org.jetbrains.annotations.NotNull;
-
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,9 +23,8 @@ public final class MemTable implements Table {
     }
 
     @Override
-    public void upsert(
-            @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key,
+                       @NotNull final ByteBuffer value) throws IOException {
         final var prev = storage.put(key, Row.of(
                 key,
                 Value.of(System.currentTimeMillis(), value),

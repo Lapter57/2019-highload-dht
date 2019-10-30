@@ -1,7 +1,6 @@
 package ru.mail.polis.dao.shakhmin;
 
 import org.jetbrains.annotations.NotNull;
-
 import java.util.Iterator;
 
 public class TableToFlush {

@@ -1,7 +1,6 @@
 package ru.mail.polis.service.shakhmin;
 
 import org.jetbrains.annotations.NotNull;
-
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Set;

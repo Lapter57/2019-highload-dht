@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -66,9 +65,8 @@ public final class LSMDao implements DAO {
         }
     }
 
-    public LSMDao(
-            @NotNull final File flushDir,
-            final long flushThresholdInBytes) throws IOException {
+    public LSMDao(@NotNull final File flushDir,
+                  final long flushThresholdInBytes) throws IOException {
         this(flushDir, flushThresholdInBytes, Runtime.getRuntime().availableProcessors() + 1);
     }
 
@@ -80,10 +78,9 @@ public final class LSMDao implements DAO {
      * @param nThreadsToFlush number of threads to flush tables
      * @throws IOException if an I/O error is thrown by a visitor method
      */
-    public LSMDao(
-            @NotNull final File flushDir,
-            final long flushThresholdInBytes,
-            final int nThreadsToFlush) throws IOException {
+    public LSMDao(@NotNull final File flushDir,
+                  final long flushThresholdInBytes,
+                  final int nThreadsToFlush) throws IOException {
         this.flushDir = flushDir;
         final var serialNumberSStable = new AtomicLong();
         Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
@@ -125,9 +122,8 @@ public final class LSMDao implements DAO {
     }
 
     @Override
-    public void upsert(
-            @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key,
+                       @NotNull final ByteBuffer value) throws IOException {
         memTable.upsert(key, value);
     }
 
