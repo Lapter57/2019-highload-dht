@@ -1,7 +1,6 @@
 package ru.mail.polis.service.shakhmin.topology;
 
 import org.jetbrains.annotations.NotNull;
-
 import java.util.Objects;
 
 final class VNode {

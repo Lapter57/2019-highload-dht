@@ -22,7 +22,6 @@ import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;

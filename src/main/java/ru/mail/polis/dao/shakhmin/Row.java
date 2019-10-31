@@ -2,7 +2,6 @@ package ru.mail.polis.dao.shakhmin;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
-
 import org.jetbrains.annotations.NotNull;
 
 public final class Row implements Comparable<Row> {
@@ -47,9 +46,8 @@ public final class Row implements Comparable<Row> {
         return serialNumber;
     }
 
-    public static long getSizeOfFlushedRow(
-            @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) {
+    public static long getSizeOfFlushedRow(@NotNull final ByteBuffer key,
+                                           @NotNull final ByteBuffer value) {
         return ((long) Integer.BYTES) + key.remaining() + Long.BYTES
                 + (value.remaining() == 0 ? 0 : Long.BYTES + value.remaining());
     }

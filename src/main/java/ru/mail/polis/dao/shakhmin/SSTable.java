@@ -10,7 +10,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-
 import org.jetbrains.annotations.NotNull;
 
 public final class SSTable implements Table {
@@ -29,9 +28,8 @@ public final class SSTable implements Table {
      * @throws IOException if an I/O error occurs
      * @throws IllegalArgumentException if serial number less than 0
      */
-    public SSTable(
-            @NotNull final Path path,
-            final long serialNumber) throws IOException, IllegalArgumentException {
+    public SSTable(@NotNull final Path path,
+                   final long serialNumber) throws IOException, IllegalArgumentException {
         if (serialNumber < 0) {
             throw new IllegalArgumentException("Serial number must not be less than 0");
         }
@@ -123,9 +121,8 @@ public final class SSTable implements Table {
     }
 
     @Override
-    public void upsert(
-            @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) throws IOException {
+    public void upsert(@NotNull final ByteBuffer key,
+                       @NotNull final ByteBuffer value) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -174,9 +171,8 @@ public final class SSTable implements Table {
      * @param rowsIterator the iterator to flush rows ({@link Row}
      * @throws IOException if an I/O error occurs
      */
-    public static void flush(
-            @NotNull final Path flushedFile,
-            @NotNull final Iterator<Row> rowsIterator) throws IOException {
+    public static void flush(@NotNull final Path flushedFile,
+                             @NotNull final Iterator<Row> rowsIterator) throws IOException {
         long offset = 0L;
         final var offsets = new ArrayList<Long>();
         offsets.add(offset);
