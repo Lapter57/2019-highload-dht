@@ -4,6 +4,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -114,15 +115,28 @@ public final class LSMDao implements DAO {
     @Override
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) throws IOException {
         final var collapsed = rowsIterator(from);
-        final var alive = Iterators.filter(collapsed, r -> !r.getValue().isRemoved());
+        final var alive = Iterators.filter(collapsed, r -> !r.getCell().isRemoved());
         return Iterators.transform(alive,
-                r -> Record.of(r.getKey(), r.getValue().getData()));
+                r -> Record.of(r.getKey(), r.getCell().getData()));
     }
 
     @NotNull
-    public Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
+    private Iterator<Row> rowsIterator(@NotNull final ByteBuffer from) throws IOException {
         final var iterators = Table.joinIterators(memTable, ssTables, from);
         return Table.reduceIterators(iterators);
+    }
+
+    @Nullable
+    public Cell getCell(@NotNull final ByteBuffer key) throws IOException {
+        final var iter = rowsIterator(key);
+        if (!iter.hasNext()) {
+            return null;
+        }
+        final var row = iter.next();
+        if (!row.getKey().equals(key)) {
+            return null;
+        }
+        return row.getCell();
     }
 
     @Override

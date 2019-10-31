@@ -29,7 +29,7 @@ public final class MemTable implements Table {
             @NotNull final ByteBuffer value) throws IOException {
         final var prev = storage.put(key, Row.of(
                 key,
-                Value.of(System.currentTimeMillis(), value),
+                Cell.of(System.currentTimeMillis(), value),
                 SERIAL_NUMBER));
         if (prev == null) {
             sizeInBytes.addAndGet(Row.getSizeOfFlushedRow(key, value));
@@ -40,12 +40,12 @@ public final class MemTable implements Table {
 
     @Override
     public void remove(@NotNull final ByteBuffer key) throws IOException {
-        final var tombstone = Value.tombstone(System.currentTimeMillis());
+        final var tombstone = Cell.tombstone(System.currentTimeMillis());
         final var prev = storage.put(key, Row.of(key, tombstone, SERIAL_NUMBER));
         if (prev == null) {
             sizeInBytes.addAndGet(Row.getSizeOfFlushedRow(key, tombstone.getData()));
-        } else if (!prev.getValue().isRemoved()){
-            sizeInBytes.addAndGet(-prev.getValue().getData().remaining());
+        } else if (!prev.getCell().isRemoved()){
+            sizeInBytes.addAndGet(-prev.getCell().getData().remaining());
         }
     }
 

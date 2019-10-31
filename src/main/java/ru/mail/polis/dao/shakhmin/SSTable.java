@@ -94,8 +94,8 @@ public final class SSTable implements Table {
         final var key = keyAt(row);
         final var timestamp = timestampAt(row);
         final var value = timestamp < 0
-                ? Value.tombstone(-timestamp)
-                : Value.of(timestamp, valueAt(row));
+                ? Cell.tombstone(-timestamp)
+                : Cell.of(timestamp, valueAt(row));
         return Row.of(key, value, serialNumber);
     }
 
@@ -186,14 +186,14 @@ public final class SSTable implements Table {
             while (rowsIterator.hasNext()) {
                 final var row = rowsIterator.next();
                 final var key = row.getKey();
-                final var value = row.getValue();
-                final var sizeRow = Row.getSizeOfFlushedRow(key, value.getData());
+                final var cell = row.getCell();
+                final var sizeRow = Row.getSizeOfFlushedRow(key, cell.getData());
                 final var rowBuffer = ByteBuffer.allocate((int) sizeRow)
                         .putInt(key.remaining())
                         .put(key.duplicate())
-                        .putLong(value.getTimestamp());
-                if (!value.isRemoved() && value.getData().remaining() != 0) {
-                    final var data = value.getData();
+                        .putLong(cell.getTimestamp());
+                if (!cell.isRemoved() && cell.getData().remaining() != 0) {
+                    final var data = cell.getData();
                     rowBuffer.putLong(data.remaining())
                             .put(data.duplicate());
                 }

@@ -21,12 +21,14 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.shakhmin.LSMDao;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.shakhmin.topology.RF;
 import ru.mail.polis.service.shakhmin.topology.Topology;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletionService;
@@ -77,7 +79,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         completionService = new ExecutorCompletionService<>(workers);
 
         final var nodes = topology.all();
-        this.defaultRF = new RF(nodes.size() / 2 + 1, nodes.size());
+        this.defaultRF = RF.from(nodes.size());
         this.pool = new HashMap<>();
         for (final var node : nodes) {
             if (topology.isMe(node)) {
@@ -109,9 +111,9 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         try {
             rf = replicas == null ? defaultRF : RF.from(replicas);
             final int nodesNumber = topology.all().size();
-            if (rf.from > nodesNumber) {
+            if (rf.getFrom() > nodesNumber) {
                 throw new IllegalArgumentException(
-                        "Wrong RF: [from = " + rf.from + "] > [ nodesNumber = " + nodesNumber);
+                        "Wrong RF: [from = " + rf.getFrom() + "] > [ nodesNumber = " + nodesNumber);
             }
         } catch (IllegalArgumentException e) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
@@ -210,76 +212,40 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         }
     }
 
-    @NotNull
-    private Value getValueFor(@NotNull final ByteBuffer key) throws IOException {
-        final var iter = dao.rowsIterator(key);
-        if (!iter.hasNext()) {
-            return Value.absent();
-        }
-
-        final var row = iter.next();
-        if (!row.getKey().equals(key)) {
-            return Value.absent();
-        }
-
-        if (row.getValue().getTimestamp() < 0) {
-            return Value.removed(row.getValue().getTimestamp());
-        } else {
-            final var data = row.getValue().getData();
-            final var buffer = new byte[data.remaining()];
-            data.duplicate().get(buffer);
-            return Value.present(buffer, row.getValue().getTimestamp());
-        }
-    }
-
     private Response get(@NotNull final MetaRequest meta) {
         if (meta.proxied) {
             try {
                 return Value.transform(
-                        getValueFor(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8))), true);
+                        Value.from(dao.getCell(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)))), true);
             } catch (IOException e) {
                 return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
             }
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.from);
+                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
 
         int acks = 0;
         final var values = new ArrayList<Value>();
         if (replicas.contains(topology.whoAmI())) {
             try {
-                values.add(getValueFor(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8))));
+                values.add(Value.from(dao.getCell(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)))));
                 acks++;
             } catch (IOException e) {
                 log.error("[{}] Can't get {}", topology.whoAmI(), meta.id, e);
             }
         }
 
-        for (final var node: replicas) {
-            if (!topology.isMe(node)) {
-                completionService.submit(() -> proxy(node, meta.request));
-            }
-        }
-        int failures = 0;
-        while (acks + failures != replicas.size()) {
+        for (final var response : getResponsesFromRelicas(replicas, meta)) {
             try {
-                final var response = completionService.take().get();
                 values.add(Value.from(response));
                 acks++;
-            } catch (InterruptedException e) {
-                log.error("[{}] Worker was interrupted while proxy", topology.whoAmI(), e);
-                failures++;
-            } catch (ExecutionException e) {
-                log.error("[{}] Failed computation while proxy", topology.whoAmI(), e);
-                failures++;
             } catch (IllegalArgumentException e) {
                 log.error("[{}] Bad response", topology.whoAmI(), e);
-                failures++;
             }
         }
 
-        if (acks >= meta.rf.ack) {
+        if (acks >= meta.rf.getAck()) {
             return Value.transform(Value.merge(values), false);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -299,7 +265,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.from);
+                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
 
         int acks = 0;
         if (replicas.contains(topology.whoAmI())) {
@@ -312,30 +278,13 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
 
-        for (final var node: replicas) {
-            if (!topology.isMe(node)) {
-                completionService.submit(() -> proxy(node, meta.request));
-            }
-        }
-        int failures = 0;
-        while (acks + failures != replicas.size()) {
-            try {
-                final var response = completionService.take().get();
-                if (response.getStatus() == 201) {
-                    acks++;
-                } else {
-                    failures++;
-                }
-            } catch (InterruptedException e) {
-                log.error("[{}] Worker was interrupted while proxy", topology.whoAmI(), e);
-                failures++;
-            } catch (ExecutionException e) {
-                log.error("[{}] Failed computation while proxy", topology.whoAmI(), e);
-                failures++;
+        for (final var response : getResponsesFromRelicas(replicas, meta)) {
+            if (response.getStatus() == 201) {
+                acks++;
             }
         }
 
-        if (acks >= meta.rf.ack) {
+        if (acks >= meta.rf.getAck()) {
             return new Response(Response.CREATED, Response.EMPTY);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -355,7 +304,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.from);
+                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
 
         int acks = 0;
         if (replicas.contains(topology.whoAmI())) {
@@ -368,16 +317,37 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
 
+        for (final var response : getResponsesFromRelicas(replicas, meta)) {
+            if (response.getStatus() == 202) {
+                acks++;
+            }
+        }
+
+        if (acks >= meta.rf.getAck()) {
+            return new Response(Response.ACCEPTED, Response.EMPTY);
+        } else {
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        }
+    }
+
+    private List<Response> getResponsesFromRelicas(@NotNull final List<String> replicas,
+                                                   @NotNull final MetaRequest meta) {
+        int acks = 0;
+        if (replicas.contains(topology.whoAmI())) {
+            acks++;
+        }
         for (final var node: replicas) {
             if (!topology.isMe(node)) {
                 completionService.submit(() -> proxy(node, meta.request));
             }
         }
         int failures = 0;
+        final var responses = new ArrayList<Response>();
         while (acks + failures != replicas.size()) {
             try {
                 final var response = completionService.take().get();
-                if (response.getStatus() == 202) {
+                responses.add(response);
+                if (response.getStatus() >= 200 && response.getStatus() < 300) {
                     acks++;
                 } else {
                     failures++;
@@ -390,12 +360,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
                 failures++;
             }
         }
-
-        if (acks >= meta.rf.ack) {
-            return new Response(Response.ACCEPTED, Response.EMPTY);
-        } else {
-            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-        }
+        return responses;
     }
 
     @Override
@@ -438,30 +403,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         return config;
-    }
-
-    private final static class RF {
-        final int ack;
-        final int from;
-
-        private RF(final int ack,
-                   final int from) {
-            this.ack = ack;
-            this.from = from;
-        }
-
-        static RF from(@NotNull final String replicas) {
-            final var splitted = Splitter.on('/').splitToList(replicas);
-            if (splitted.size() != 2) {
-                throw new IllegalArgumentException("Wrong RF: " + replicas);
-            }
-            final int ack = Integer.parseInt(splitted.get(0));
-            final int from = Integer.parseInt(splitted.get(1));
-            if (ack < 1 || from < ack) {
-                throw new IllegalArgumentException("Wrong RF: " + replicas);
-            }
-            return new RF(ack,from);
-        }
     }
 
     private final static class MetaRequest {

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static ru.mail.polis.dao.shakhmin.Value.EMPTY_DATA;
+import static ru.mail.polis.dao.shakhmin.Cell.EMPTY_DATA;
 
 public class MemTablePool implements Table, Closeable {
     private static final ByteBuffer LOWEST_KEY = ByteBuffer.allocate(0);

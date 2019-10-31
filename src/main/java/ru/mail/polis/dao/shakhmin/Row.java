@@ -8,29 +8,29 @@ import org.jetbrains.annotations.NotNull;
 public final class Row implements Comparable<Row> {
 
     @NotNull private final ByteBuffer key;
-    @NotNull private final Value value;
+    @NotNull private final Cell cell;
     private final long serialNumber;
 
     private static final Comparator<Row> COMPARATOR =
             Comparator
                     .comparing(Row::getKey)
-                    .thenComparing(Row::getValue)
+                    .thenComparing(Row::getCell)
                     .thenComparing((r) -> -r.getSerialNumber());
 
     private Row(
             @NotNull final ByteBuffer key,
-            @NotNull final Value value,
+            @NotNull final Cell cell,
             final long serialNumber) {
         this.key = key;
-        this.value = value;
+        this.cell = cell;
         this.serialNumber = serialNumber;
     }
 
     public static Row of(
             @NotNull final ByteBuffer key,
-            @NotNull final Value value,
+            @NotNull final Cell cell,
             final long serialNumber) {
-        return new Row(key, value, serialNumber);
+        return new Row(key, cell, serialNumber);
     }
 
     @NotNull
@@ -39,8 +39,8 @@ public final class Row implements Comparable<Row> {
     }
 
     @NotNull
-    public Value getValue() {
-        return value;
+    public Cell getCell() {
+        return cell;
     }
 
     public long getSerialNumber() {

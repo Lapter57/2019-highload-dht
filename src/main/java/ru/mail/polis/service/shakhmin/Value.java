@@ -3,6 +3,7 @@ package ru.mail.polis.service.shakhmin;
 import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import ru.mail.polis.dao.shakhmin.Cell;
 
 import java.util.Collection;
 
@@ -56,6 +57,21 @@ final class Value implements Comparable<Value> {
             }
         } else {
             throw new IllegalArgumentException("Bad response");
+        }
+    }
+
+    @NotNull
+    public static Value from(@Nullable final Cell cell) {
+        if (cell == null) {
+            return Value.absent();
+        }
+        if (cell.isRemoved()) {
+            return Value.removed(cell.getTimestamp());
+        } else {
+            final var data = cell.getData();
+            final var buffer = new byte[data.remaining()];
+            data.duplicate().get(buffer);
+            return Value.present(buffer, cell.getTimestamp());
         }
     }
 
