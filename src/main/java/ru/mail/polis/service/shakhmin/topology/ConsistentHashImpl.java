@@ -4,7 +4,17 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
 
 /**
  * See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
@@ -81,8 +91,8 @@ public final class ConsistentHashImpl implements ConsistentHash {
             if (!iter.hasNext()) {
                 iter = ring.values().iterator();
             }
-            var vNode = iter.next();
-            final var replica = vNode.getAddress();
+            var vnode = iter.next();
+            final var replica = vnode.getAddress();
             if (!replicas.contains(replica)) {
                 replicas.add(replica);
                 cntReplicas++;

@@ -123,6 +123,13 @@ public final class LSMDao implements DAO {
         return Table.reduceIterators(iterators);
     }
 
+    /**
+     *  Get cell by key.
+     *
+     * @param key key
+     * @return null if cell is not found and cell otherwise
+     * @throws IOException if an I/O error occurs
+     */
     @Nullable
     public Cell getCell(@NotNull final ByteBuffer key) throws IOException {
         final var iter = rowsIterator(key);

@@ -1,7 +1,6 @@
 package ru.mail.polis.service.shakhmin;
 
 import com.google.common.base.Charsets;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
@@ -20,10 +19,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.shakhmin.LSMDao;
+import ru.mail.polis.service.MetaRequest;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.shakhmin.topology.RF;
 import ru.mail.polis.service.shakhmin.topology.Topology;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -35,31 +34,18 @@ import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
-import java.util.concurrent.Executors;
 
 public class ReplicatedHttpServer extends HttpServer implements Service {
 
     private static final Logger log = LoggerFactory.getLogger(ReplicatedHttpServer.class);
     private static final String PROXY_HEADER = "X-OK-Proxy: true";
-    static final String TIMESTAMP_HEADER = "X-OK-Timestamp: ";
 
-    @NotNull
-    private final Topology<String> topology;
-
-    @NotNull
-    private final LSMDao dao;
-
-    @NotNull
-    private final Executor serverWorkers;
-
-    @NotNull
-    private final CompletionService<Response> proxyService;
-
-    @NotNull
-    private final Map<String, HttpClient> pool;
-
-    @NotNull
-    private RF defaultRF;
+    @NotNull private final Topology<String> topology;
+    @NotNull private final LSMDao dao;
+    @NotNull private final Executor serverWorkers;
+    @NotNull private final CompletionService<Response> proxyService;
+    @NotNull private final Map<String, HttpClient> pool;
+    @NotNull private final RF defaultRF;
 
     /**
      * Creates an replicated http server for working with storage.
@@ -79,7 +65,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         this.dao = (LSMDao) dao;
         this.serverWorkers = workers;
         proxyService = new ExecutorCompletionService<>(proxyWorkers);
-
         final var nodes = topology.all();
         this.defaultRF = RF.from(nodes.size());
         this.pool = new HashMap<>();
@@ -108,7 +93,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-
         final RF rf;
         try {
             rf = replicas == null ? defaultRF : RF.from(replicas);
@@ -121,25 +105,20 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-
         final boolean proxied = request.getHeader(PROXY_HEADER) != null;
-
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 executeAsync(session, () -> get(new MetaRequest(request, rf, id, proxied)));
                 break;
-
             case Request.METHOD_PUT:
                 executeAsync(session,
                         () -> upsert(new MetaRequest(
-                                request, rf, id,  ByteBuffer.wrap(request.getBody()), proxied)));
+                                request, rf, id, ByteBuffer.wrap(request.getBody()), proxied)));
                 break;
-
             case Request.METHOD_DELETE:
                 executeAsync(session,
                         () -> delete(new MetaRequest(request, rf, id, proxied)));
                 break;
-
             default:
                 sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
                 break;
@@ -164,12 +143,10 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-
         if (request.getMethod() != Request.METHOD_GET) {
             sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
             return;
         }
-
         try {
             final var records =
                     dao.range(
@@ -215,26 +192,27 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     }
 
     private Response get(@NotNull final MetaRequest meta) {
-        if (meta.proxied) {
+        if (meta.proxied()) {
             try {
                 return Value.transform(
-                        Value.from(dao.getCell(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)))), true);
+                        Value.from(dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))),
+                        true);
             } catch (IOException e) {
                 return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
             }
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
-
+                ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         int acks = 0;
         final var values = new ArrayList<Value>();
         if (replicas.contains(topology.whoAmI())) {
             try {
-                values.add(Value.from(dao.getCell(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)))));
+                values.add(Value.from(
+                        dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))));
                 acks++;
             } catch (IOException e) {
-                log.error("[{}] Can't get {}", topology.whoAmI(), meta.id, e);
+                log.error("[{}] Can't get {}", topology.whoAmI(), meta.getId(), e);
             }
         }
 
@@ -246,7 +224,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
                 log.error("[{}] Bad response", topology.whoAmI(), e);
             }
         }
-        if (acks >= meta.rf.getAck()) {
+        if (acks >= meta.getRf().getAck()) {
             return Value.transform(Value.merge(values), false);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -254,9 +232,9 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     }
 
     private Response upsert(@NotNull final MetaRequest meta) {
-        if (meta.proxied) {
+        if (meta.proxied()) {
             try {
-                dao.upsert(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.value);
+                dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
                 return new Response(Response.CREATED, Response.EMPTY);
             } catch (NoSuchElementException e) {
                 return new Response(Response.NOT_FOUND, Response.EMPTY);
@@ -266,16 +244,16 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
+                ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
 
         int acks = 0;
         if (replicas.contains(topology.whoAmI())) {
             try {
-                dao.upsert(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.value);
+                dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
                 acks++;
             } catch (IOException e) {
                 log.error("[{}] Can't upsert {}={}",
-                        topology.whoAmI(), meta.id, meta.value, e);
+                        topology.whoAmI(), meta.getId(), meta.getValue(), e);
             }
         }
 
@@ -285,7 +263,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
 
-        if (acks >= meta.rf.getAck()) {
+        if (acks >= meta.getRf().getAck()) {
             return new Response(Response.CREATED, Response.EMPTY);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -293,9 +271,9 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     }
 
     private Response delete(@NotNull final MetaRequest meta) {
-        if (meta.proxied) {
+        if (meta.proxied()) {
             try {
-                dao.remove(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)));
+                dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
                 return new Response(Response.ACCEPTED, Response.EMPTY);
             } catch (NoSuchElementException e) {
                 return new Response(Response.NOT_FOUND, Response.EMPTY);
@@ -305,16 +283,16 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         }
 
         final var replicas = topology.replicas(
-                ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)), meta.rf.getFrom());
+                ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
 
         int acks = 0;
         if (replicas.contains(topology.whoAmI())) {
             try {
-                dao.remove(ByteBuffer.wrap(meta.id.getBytes(Charsets.UTF_8)));
+                dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
                 acks++;
             } catch (IOException e) {
                 log.error("[{}] Can't remove {}={}",
-                        topology.whoAmI(), meta.id, meta.value, e);
+                        topology.whoAmI(), meta.getId(), meta.getValue(), e);
             }
         }
 
@@ -324,7 +302,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
 
-        if (acks >= meta.rf.getAck()) {
+        if (acks >= meta.getRf().getAck()) {
             return new Response(Response.ACCEPTED, Response.EMPTY);
         } else {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
@@ -335,7 +313,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
                                                    @NotNull final MetaRequest meta) {
         for (final var node: replicas) {
             if (!topology.isMe(node)) {
-                proxyService.submit(() -> proxy(node, meta.request));
+                proxyService.submit(() -> proxy(node, meta.getRequest()));
             }
         }
         final var numResponses = replicas.contains(topology.whoAmI())
@@ -394,34 +372,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         return config;
-    }
-
-    private final static class MetaRequest {
-
-        @NotNull final Request request;
-        @NotNull final RF rf;
-        @NotNull final String id;
-        @NotNull final ByteBuffer value;
-        final boolean proxied;
-
-        MetaRequest(@NotNull final Request request,
-                    @NotNull final RF rf,
-                    @NotNull final String id,
-                    @NotNull final ByteBuffer value,
-                    final boolean proxied) {
-            this.request = request;
-            this.rf = rf;
-            this.id = id;
-            this.value = value;
-            this.proxied = proxied;
-        }
-
-        MetaRequest(@NotNull final Request request,
-                    @NotNull final RF rf,
-                    @NotNull final String id,
-                    final boolean proxied) {
-            this(request, rf, id, ByteBuffer.allocate(0), proxied);
-        }
     }
 
     @FunctionalInterface

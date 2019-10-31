@@ -3,7 +3,7 @@ package ru.mail.polis.service.shakhmin.topology;
 import com.google.common.base.Splitter;
 import org.jetbrains.annotations.NotNull;
 
-public class RF {
+public final class RF {
     private final int ack;
     private final int from;
 
@@ -17,6 +17,12 @@ public class RF {
         return numNodes / 2 + 1;
     }
 
+    /**
+     * Parse replication factor from string in format "ack/from".
+     *
+     * @param replicas string in format "ack/from"
+     * @return a replication factor instance
+     */
     public static RF from(@NotNull final String replicas) {
         final var splitted = Splitter.on('/').splitToList(replicas);
         if (splitted.size() != 2) {
@@ -30,6 +36,13 @@ public class RF {
         return new RF(ack,from);
     }
 
+    /**
+     * Create replication factor instance from number
+     * of nodes using quorum.
+     *
+     * @param numNodes number of nodes
+     * @return a replication factor instance
+     */
     public static RF from(final int numNodes) {
         return new RF(RF.quorum(numNodes), numNodes);
     }

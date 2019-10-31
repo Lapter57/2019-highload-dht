@@ -4,13 +4,11 @@ import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.shakhmin.Cell;
-
+import java.util.Arrays;
 import java.util.Collection;
 
-import static ru.mail.polis.service.shakhmin.ReplicatedHttpServer.TIMESTAMP_HEADER;
-
 final class Value implements Comparable<Value> {
-
+    private static final String TIMESTAMP_HEADER = "X-OK-Timestamp: ";
     private static final Value ABSENT = new Value(null, -1, State.ABSENT);
 
     @Nullable private final byte[] data;
@@ -20,7 +18,7 @@ final class Value implements Comparable<Value> {
     private Value(@Nullable final byte[] data,
                   final long timestamp,
                   @NotNull final State state) {
-        this.data = data;
+        this.data = data == null ? null : Arrays.copyOf(data, data.length);
         this.timestamp = timestamp;
         this.state = state;
     }
