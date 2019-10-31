@@ -1,7 +1,7 @@
 package ru.mail.polis.service.shakhmin;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Splitter;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
@@ -35,6 +35,7 @@ import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Executors;
 
 public class ReplicatedHttpServer extends HttpServer implements Service {
 
@@ -52,7 +53,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     private final Executor serverWorkers;
 
     @NotNull
-    private final CompletionService<Response> completionService;
+    private final CompletionService<Response> proxyService;
 
     @NotNull
     private final Map<String, HttpClient> pool;
@@ -71,12 +72,13 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     public ReplicatedHttpServer(final int port,
                                 @NotNull final Topology<String> topology,
                                 @NotNull final DAO dao,
-                                @NotNull final Executor workers) throws IOException {
+                                @NotNull final Executor workers,
+                                @NotNull final Executor proxyWorkers) throws IOException {
         super(getConfig(port));
         this.topology = topology;
         this.dao = (LSMDao) dao;
         this.serverWorkers = workers;
-        completionService = new ExecutorCompletionService<>(workers);
+        proxyService = new ExecutorCompletionService<>(proxyWorkers);
 
         final var nodes = topology.all();
         this.defaultRF = RF.from(nodes.size());
@@ -244,7 +246,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
                 log.error("[{}] Bad response", topology.whoAmI(), e);
             }
         }
-
         if (acks >= meta.rf.getAck()) {
             return Value.transform(Value.merge(values), false);
         } else {
@@ -332,32 +333,22 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
 
     private List<Response> getResponsesFromRelicas(@NotNull final List<String> replicas,
                                                    @NotNull final MetaRequest meta) {
-        int acks = 0;
-        if (replicas.contains(topology.whoAmI())) {
-            acks++;
-        }
         for (final var node: replicas) {
             if (!topology.isMe(node)) {
-                completionService.submit(() -> proxy(node, meta.request));
+                proxyService.submit(() -> proxy(node, meta.request));
             }
         }
-        int failures = 0;
+        final var numResponses = replicas.contains(topology.whoAmI())
+                ? replicas.size() - 1
+                : replicas.size();
         final var responses = new ArrayList<Response>();
-        while (acks + failures != replicas.size()) {
+        for (int i = 0; i < numResponses; i++){
             try {
-                final var response = completionService.take().get();
-                responses.add(response);
-                if (response.getStatus() >= 200 && response.getStatus() < 300) {
-                    acks++;
-                } else {
-                    failures++;
-                }
+                responses.add(proxyService.take().get());
             } catch (InterruptedException e) {
                 log.error("[{}] Worker was interrupted while proxy", topology.whoAmI(), e);
-                failures++;
             } catch (ExecutionException e) {
                 log.error("[{}] Failed computation while proxy", topology.whoAmI(), e);
-                failures++;
             }
         }
         return responses;

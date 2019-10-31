@@ -65,9 +65,12 @@ public final class ServiceFactory {
                         topology,
                         "http://localhost:" + port);
 
-        final Executor executor =
+        final var workers =
                 Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1,
                         new ThreadFactoryBuilder().setNameFormat("worker-%d").build());
-        return new ReplicatedHttpServer(port, nodes, dao, executor);
+        final var proxyWorkers =
+                Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1,
+                        new ThreadFactoryBuilder().setNameFormat("proxy-worker-%d").build());
+        return new ReplicatedHttpServer(port, nodes, dao, workers, proxyWorkers);
     }
 }
