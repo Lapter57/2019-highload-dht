@@ -7,6 +7,8 @@ import java.nio.ByteBuffer;
 
 public final class MetaRequest {
 
+    private static final String PARAM_ID = "id";
+
     @NotNull
     private final Request request;
     @NotNull
@@ -17,37 +19,37 @@ public final class MetaRequest {
     private final ByteBuffer value;
     private final boolean proxied;
 
-    public MetaRequest(@NotNull final Request request,
+    /**
+     * Creates implementation of meta info of request.
+     *
+     * @param request request
+     * @param rf a replication factor
+     * @param proxied true if request is proxied
+     */
+    MetaRequest(@NotNull final Request request,
                 @NotNull final RF rf,
-                @NotNull final String id,
-                @NotNull final ByteBuffer value,
                 final boolean proxied) {
         this.request = request;
         this.rf = rf;
-        this.id = id;
-        this.value = value;
+        this.id = request.getParameter(PARAM_ID).substring(1);
+        this.value = request.getBody() == null
+                ? ByteBuffer.allocate(0)
+                : ByteBuffer.wrap(request.getBody());
         this.proxied = proxied;
     }
 
-    public MetaRequest(@NotNull final Request request,
-                @NotNull final RF rf,
-                @NotNull final String id,
-                final boolean proxied) {
-        this(request, rf, id, ByteBuffer.allocate(0), proxied);
-    }
-
     @NotNull
-    public Request getRequest() {
+    Request getRequest() {
         return request;
     }
 
     @NotNull
-    public RF getRf() {
+    RF getRf() {
         return rf;
     }
 
     @NotNull
-    public String getId() {
+    String getId() {
         return id;
     }
 
@@ -56,7 +58,7 @@ public final class MetaRequest {
         return value;
     }
 
-    public boolean proxied() {
+    boolean proxied() {
         return proxied;
     }
 }

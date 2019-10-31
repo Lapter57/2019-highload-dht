@@ -91,16 +91,15 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final boolean proxied = request.getHeader(PROXY_HEADER) != null;
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                executeAsync(session, () -> httpService.get(new MetaRequest(request, rf, id, proxied)));
+                executeAsync(session, () -> httpService.get(new MetaRequest(request, rf, proxied)));
                 break;
             case Request.METHOD_PUT:
                 executeAsync(session,
-                        () -> httpService.upsert(new MetaRequest(
-                                request, rf, id, ByteBuffer.wrap(request.getBody()), proxied)));
+                        () -> httpService.upsert(new MetaRequest(request, rf, proxied)));
                 break;
             case Request.METHOD_DELETE:
                 executeAsync(session,
-                        () -> httpService.delete(new MetaRequest(request, rf, id, proxied)));
+                        () -> httpService.delete(new MetaRequest(request, rf, proxied)));
                 break;
             default:
                 sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
@@ -163,7 +162,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             }
         }
     }
-
 
     @Override
     public void handleDefault(final Request request,

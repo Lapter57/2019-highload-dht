@@ -35,7 +35,6 @@ final class HttpService {
     @NotNull private final Topology<String> topology;
     @NotNull private final Map<String, HttpClient> pool;
 
-
     HttpService(@NotNull final Executor proxyWorkers,
                        @NotNull final DAO dao,
                        @NotNull final Topology<String> topology) {
