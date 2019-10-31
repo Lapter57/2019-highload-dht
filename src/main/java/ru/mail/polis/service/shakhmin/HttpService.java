@@ -36,8 +36,8 @@ final class HttpService {
     @NotNull private final Map<String, HttpClient> pool;
 
     HttpService(@NotNull final Executor proxyWorkers,
-                       @NotNull final DAO dao,
-                       @NotNull final Topology<String> topology) {
+                @NotNull final DAO dao,
+                @NotNull final Topology<String> topology) {
         this.proxyService = new ExecutorCompletionService<>(proxyWorkers);
         this.dao = (LSMDao) dao;
         this.topology = topology;
