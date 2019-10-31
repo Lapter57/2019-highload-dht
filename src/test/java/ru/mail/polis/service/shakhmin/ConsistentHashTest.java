@@ -3,6 +3,8 @@ package ru.mail.polis.service.shakhmin;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.mail.polis.TestBase;
+import ru.mail.polis.service.shakhmin.topology.ConsistentHash;
+import ru.mail.polis.service.shakhmin.topology.ConsistentHashImpl;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
