@@ -3,15 +3,10 @@ package ru.mail.polis.service.shakhmin;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.mail.polis.TestBase;
-
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,7 +31,7 @@ class ConsistentHashTest extends TestBase {
         final var node0 = endpoint(port0);
         final var node1 = endpoint(port1);
         final var node2 = endpoint(port2);
-        
+
         nodes = new LinkedHashSet<>(Arrays.asList(node0, node1, node2));
         topology0 = new ConsistentHashImpl(nodes, node0);
         topology1 = new ConsistentHashImpl(nodes, node1);
