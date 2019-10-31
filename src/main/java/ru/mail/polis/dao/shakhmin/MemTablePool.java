@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import static ru.mail.polis.dao.shakhmin.Value.EMPTY_DATA;
 
 public class MemTablePool implements Table, Closeable {
