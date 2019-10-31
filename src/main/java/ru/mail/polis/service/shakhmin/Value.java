@@ -106,7 +106,9 @@ final class Value implements Comparable<Value> {
 
     @Nullable
     byte[] getData() {
-        return data;
+        return data == null
+                ? null
+                : Arrays.copyOf(data, data.length);
     }
 
     long getTimestamp() {

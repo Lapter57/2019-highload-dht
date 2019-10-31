@@ -15,7 +15,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-
 /**
  * See "6.2 Ensuring Uniform Load distribution" (Strategy 3) in
  * <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf">
@@ -91,7 +90,7 @@ public final class ConsistentHashImpl implements ConsistentHash {
             if (!iter.hasNext()) {
                 iter = ring.values().iterator();
             }
-            var vnode = iter.next();
+            final var vnode = iter.next();
             final var replica = vnode.getAddress();
             if (!replicas.contains(replica)) {
                 replicas.add(replica);

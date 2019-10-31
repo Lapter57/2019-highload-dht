@@ -1,9 +1,8 @@
-package ru.mail.polis.service;
+package ru.mail.polis.service.shakhmin;
 
 import one.nio.http.Request;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.service.shakhmin.topology.RF;
-
 import java.nio.ByteBuffer;
 
 public final class MetaRequest {
