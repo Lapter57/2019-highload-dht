@@ -4,11 +4,12 @@ import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.shakhmin.Cell;
+import java.net.http.HttpResponse;
 import java.util.Arrays;
 import java.util.Collection;
 
 final class Value implements Comparable<Value> {
-    private static final String TIMESTAMP_HEADER = "X-OK-Timestamp: ";
+    private static final String TIMESTAMP_HEADER_NAME = "X-OK-Timestamp";
     private static final Value ABSENT = new Value(null, -1, State.ABSENT);
 
     @Nullable private final byte[] data;
@@ -40,14 +41,15 @@ final class Value implements Comparable<Value> {
     }
 
     @NotNull
-    public static Value from(@NotNull final Response response) {
-        final var timestamp = response.getHeader(TIMESTAMP_HEADER);
-        if (response.getStatus() == 200) {
+    public static Value from(@NotNull final HttpResponse<byte[]> response) {
+        final var headers = response.headers();
+        final var timestamp = headers.firstValue(TIMESTAMP_HEADER_NAME.toLowerCase()).orElse(null);
+        if (response.statusCode() == 200) {
             if (timestamp == null) {
                 throw new IllegalArgumentException("Wrong input data");
             }
-            return present(response.getBody(), Long.parseLong(timestamp));
-        } else if (response.getStatus() == 404) {
+            return present(response.body(), Long.parseLong(timestamp));
+        } else if (response.statusCode() == 404) {
             if (timestamp == null) {
                 return absent();
             } else {
@@ -81,13 +83,13 @@ final class Value implements Comparable<Value> {
             case PRESENT:
                 result = new Response(Response.OK, value.getData());
                 if (proxied) {
-                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
+                    result.addHeader(TIMESTAMP_HEADER_NAME + ": " + value.getTimestamp());
                 }
                 return result;
             case REMOVED:
                 result = new Response(Response.NOT_FOUND, Response.EMPTY);
                 if (proxied) {
-                    result.addHeader(TIMESTAMP_HEADER + value.getTimestamp());
+                    result.addHeader(TIMESTAMP_HEADER_NAME + ": " + value.getTimestamp());
                 }
                 return result;
             case ABSENT:
