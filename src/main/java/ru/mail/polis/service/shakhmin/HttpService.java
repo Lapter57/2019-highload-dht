@@ -21,6 +21,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
@@ -71,6 +72,7 @@ final class HttpService {
                 log.error("[{}] Can't get {}", topology.whoAmI(), meta.getId(), e);
             }
         }
+
         for (final var response : getResponsesFromReplicas(replicas, meta)) {
             try {
                 values.add(Value.from(response));
@@ -203,7 +205,7 @@ final class HttpService {
         }
         return Collections.emptyList();
     }
-    @SuppressWarnings("FutureReturnValueIgnored")
+
     private static <T> CompletableFuture<List<T>> getFirstResponses(@NotNull final List<CompletableFuture<T>> futures,
                                                                     final int acks) {
         if (futures.size() < acks) {
@@ -216,22 +218,22 @@ final class HttpService {
         final var result = new CompletableFuture<List<T>>();
 
         final BiConsumer<T,Throwable> biConsumer = (value, failure) -> {
-            log.info("{}", value);
             if ((failure != null || value == null) && fails.incrementAndGet() > maxFails) {
                 result.complete(Collections.unmodifiableList(responses));
-            } else if (!result.isDone()) {
+            } else if (!result.isDone() && value != null) {
                 responses.add(value);
                 if (responses.size() == acks) {
                     result.complete(Collections.unmodifiableList(responses));
                 }
             }
         };
-        for (final var future : futures){
-            future.whenCompleteAsync(biConsumer)
-                    .exceptionally(ex -> {
-                        log.error("Failed to get response from nodes", ex);
-                        return null;
-                    });
+        for (final var future : futures) {
+            future.orTimeout(1, TimeUnit.SECONDS)
+                  .whenCompleteAsync(biConsumer)
+                  .exceptionally(ex -> {
+                      log.error("Failed to get response from node", ex);
+                      return null;
+                  });
         }
         return result;
     }
