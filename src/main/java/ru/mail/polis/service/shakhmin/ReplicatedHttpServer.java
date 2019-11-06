@@ -11,22 +11,20 @@ import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.shakhmin.LSMDao;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.shakhmin.topology.RF;
 import ru.mail.polis.service.shakhmin.topology.Topology;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
 import static ru.mail.polis.service.shakhmin.HttpService.PROXY_HEADER;
+import static ru.mail.polis.service.shakhmin.HttpService.sendResponse;
 
 public class ReplicatedHttpServer extends HttpServer implements Service {
-
-    private static final Logger log = LoggerFactory.getLogger(ReplicatedHttpServer.class);
 
     @NotNull private final Topology<String> topology;
     @NotNull private final LSMDao dao;
@@ -74,7 +72,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
             sendResponse(session, new Response(Response.BAD_REQUEST, Response.EMPTY));
             return;
         }
-
         final RF rf;
         try {
             rf = replicas == null ? defaultRF : RF.from(replicas);
@@ -91,15 +88,13 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final boolean proxied = request.getHeader(PROXY_HEADER) != null;
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                executeAsync(session, () -> httpService.get(new MetaRequest(request, rf, proxied)));
+                executeAsync(() -> httpService.get(session, new MetaRequest(request, rf, proxied)));
                 break;
             case Request.METHOD_PUT:
-                executeAsync(session,
-                        () -> httpService.upsert(new MetaRequest(request, rf, proxied)));
+                executeAsync(() -> httpService.upsert(session, new MetaRequest(request, rf, proxied)));
                 break;
             case Request.METHOD_DELETE:
-                executeAsync(session,
-                        () -> httpService.delete(new MetaRequest(request, rf, proxied)));
+                executeAsync(() -> httpService.delete(session, new MetaRequest(request, rf, proxied)));
                 break;
             default:
                 sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
@@ -150,19 +145,6 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         return new Response(Response.OK, Response.EMPTY);
     }
 
-    private void sendResponse(@NotNull final HttpSession session,
-                              @NotNull final Response response) {
-        try {
-            session.sendResponse(response);
-        } catch (IOException e) {
-            try {
-                session.sendError(Response.INTERNAL_ERROR, "Internal error");
-            } catch (IOException ex) {
-                log.error("Error with send response {}", ex.getMessage());
-            }
-        }
-    }
-
     @Override
     public void handleDefault(final Request request,
                               final HttpSession session) throws IOException {
@@ -175,19 +157,8 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         return new StorageSession(socket, this);
     }
 
-    private void executeAsync(@NotNull final HttpSession session,
-                              @NotNull final Action action) {
-        serverWorkers.execute(() -> {
-            try {
-                sendResponse(session, action.act());
-            } catch (IOException e) {
-                try {
-                    session.sendError(Response.INTERNAL_ERROR, "Internal error");
-                } catch (IOException ex) {
-                    log.error("Error with send response {}", ex.getMessage());
-                }
-            }
-        });
+    private void executeAsync(@NotNull final Runnable action) {
+        serverWorkers.execute(action::run);
     }
 
     private static HttpServerConfig getConfig(final int port) {
@@ -203,10 +174,5 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         return config;
-    }
-
-    @FunctionalInterface
-    interface Action {
-        Response act() throws IOException;
     }
 }
