@@ -16,7 +16,6 @@ import ru.mail.polis.dao.shakhmin.LSMDao;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.shakhmin.topology.RF;
 import ru.mail.polis.service.shakhmin.topology.Topology;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
@@ -158,7 +157,7 @@ public class ReplicatedHttpServer extends HttpServer implements Service {
     }
 
     private void executeAsync(@NotNull final Runnable action) {
-        serverWorkers.execute(action::run);
+        serverWorkers.execute(action);
     }
 
     private static HttpServerConfig getConfig(final int port) {

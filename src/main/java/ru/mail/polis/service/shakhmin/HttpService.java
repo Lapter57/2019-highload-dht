@@ -25,6 +25,9 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 final class HttpService {
 
@@ -56,42 +59,28 @@ final class HttpService {
                         Value.from(dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))),
                         true);
                 sendResponse(session, response);
-                return;
             } catch (IOException e) {
                 sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-                return;
             }
+            return;
         }
 
+        final var values = new ArrayList<Value>();
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
-
-        final var acks = new AtomicInteger(0);
-        final var values = new ArrayList<Value>();
-        if (replicas.contains(topology.whoAmI())) {
-            try {
-                values.add(Value.from(
-                        dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))));
-                acks.incrementAndGet();
-            } catch (IOException e) {
-                log.error("[{}] Can't get {}", topology.whoAmI(), meta.getId(), e);
-            }
-        }
-
-        getResponsesFromReplicas(replicas, meta)
+        handleLocally(replicas, () -> getFromDao(meta.getId(), values))
+                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> {
-                    for (final var response : responses) {
-                        values.add(Value.from(response));
-                       acks.incrementAndGet();
-                    }
-                    if (acks.get() >= meta.getRf().getAck()) {
-                        sendResponse(session, Value.transform(Value.merge(values), false));
-                    } else {
-                        sendResponse(session, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
-                    }
+                    handleResponses(
+                            replicas.contains(topology.whoAmI()) ? 1 : 0,
+                            session,
+                            responses,
+                            r -> values.add(Value.from(r)),
+                            a -> a >= meta.getRf().getAck(),
+                            () -> Value.transform(Value.merge(values), false));
                 })
                 .exceptionally(ex -> {
-                    log.error("Failed to get response from node", ex);
+                    log.error("Failed to get responses", ex);
                     return null;
                 });
     }
@@ -102,45 +91,29 @@ final class HttpService {
             try {
                 dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
                 sendResponse(session, new Response(Response.CREATED, Response.EMPTY));
-                return;
             } catch (NoSuchElementException e) {
                 sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
-                return;
             } catch (IOException e) {
                 sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-                return;
             }
+            return;
         }
 
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
-
-        final var acks = new AtomicInteger(0);
-        if (replicas.contains(topology.whoAmI())) {
-            try {
-                dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
-                acks.incrementAndGet();
-            } catch (IOException e) {
-                log.error("[{}] Can't upsert {}={}",
-                        topology.whoAmI(), meta.getId(), meta.getValue(), e);
-            }
-        }
-
-        getResponsesFromReplicas(replicas, meta)
+        handleLocally(replicas, () -> upsertToDao(meta.getId(), meta.getValue()))
+                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> {
-                    for (final var response : responses) {
-                        if (response.statusCode() == 201) {
-                            acks.incrementAndGet();
-                        }
-                    }
-                    if (acks.get() >= meta.getRf().getAck()) {
-                        sendResponse(session, new Response(Response.CREATED, Response.EMPTY));
-                    } else {
-                        sendResponse(session, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
-                    }
+                    handleResponses(
+                            replicas.contains(topology.whoAmI()) ? 1 : 0,
+                            session,
+                            responses,
+                            r -> r.statusCode() == 201,
+                            a -> a >= meta.getRf().getAck(),
+                            () -> new Response(Response.CREATED, Response.EMPTY));
                 })
                 .exceptionally(ex -> {
-                    log.error("Failed to get response from node", ex);
+                    log.error("Failed to get responses", ex);
                     return null;
                 });
     }
@@ -151,42 +124,26 @@ final class HttpService {
             try {
                 dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
                 sendResponse(session, new Response(Response.ACCEPTED, Response.EMPTY));
-                return;
             } catch (NoSuchElementException e) {
                 sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
-                return;
             } catch (IOException e) {
                 sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-                return;
             }
+            return;
         }
 
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
-
-        final var acks = new AtomicInteger(0);
-        if (replicas.contains(topology.whoAmI())) {
-            try {
-                dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
-                acks.incrementAndGet();
-            } catch (IOException e) {
-                log.error("[{}] Can't remove {}={}",
-                        topology.whoAmI(), meta.getId(), meta.getValue(), e);
-            }
-        }
-
-        getResponsesFromReplicas(replicas, meta)
+        handleLocally(replicas, () -> removeFromDao(meta.getId()))
+                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> {
-                    for (final var response : responses) {
-                        if (response.statusCode() == 202) {
-                            acks.incrementAndGet();
-                        }
-                    }
-                    if (acks.get() >= meta.getRf().getAck()) {
-                        sendResponse(session, new Response(Response.ACCEPTED, Response.EMPTY));
-                    } else {
-                        sendResponse(session, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
-                    }
+                    handleResponses(
+                            replicas.contains(topology.whoAmI()) ? 1 : 0,
+                            session,
+                            responses,
+                            r -> r.statusCode() == 202,
+                            a -> a >= meta.getRf().getAck(),
+                            () -> new Response(Response.ACCEPTED, Response.EMPTY));
                 })
                 .exceptionally(ex -> {
                     log.error("Failed to get responses", ex);
@@ -194,40 +151,98 @@ final class HttpService {
                 });
     }
 
+    private static <T> void handleResponses(int acks,
+                                            @NotNull final HttpSession session,
+                                            @NotNull final List<T> responses,
+                                            @NotNull final Function<T, Boolean> handler,
+                                            @NotNull final Predicate<Integer> isSuccess,
+                                            @NotNull final Supplier<Response> supplier) {
+        for (final var response : responses) {
+            if (handler.apply(response)) {
+                acks++;
+            }
+        }
+        if (isSuccess.test(acks)) {
+            sendResponse(session, supplier.get());
+        } else {
+            sendResponse(session, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
+        }
+    }
+
+    private CompletableFuture<Boolean> handleLocally(@NotNull final List<String> replicas,
+                                                     @NotNull final Runnable handler) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (replicas.contains(topology.whoAmI())) {
+                handler.run();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void removeFromDao(@NotNull final String key) {
+        try {
+            dao.remove(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)));
+        } catch (IOException e) {
+            log.error("[{}] Can't remove {}", topology.whoAmI(), key, e);
+        }
+    }
+
+    private void upsertToDao(@NotNull final String key,
+                             @NotNull final ByteBuffer value) {
+        try {
+            dao.upsert(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)), value);
+        } catch (IOException e) {
+            log.error("[{}] Can't upsert {}={}", topology.whoAmI(), key, value, e);
+        }
+    }
+
+    private void getFromDao(@NotNull final String key,
+                            @NotNull final List<Value> values) {
+        try {
+            values.add(Value.from(
+                    dao.getCell(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)))));
+        } catch (IOException e) {
+            log.error("[{}] Can't get {}", topology.whoAmI(), key, e);
+        }
+    }
+
     @NotNull
     private CompletableFuture<List<HttpResponse<byte[]>>> getResponsesFromReplicas(
             @NotNull final List<String> replicas,
             @NotNull final MetaRequest meta) {
-        final int acks = replicas.remove(topology.whoAmI())
+        final int acks = replicas.contains(topology.whoAmI())
                 ? meta.getRf().getAck() - 1
                 : meta.getRf().getAck();
         if (acks > 0) {
             final var futures = new ArrayList<CompletableFuture<HttpResponse<byte[]>>>();
             for (final var node : replicas) {
-                final var requestBuilder = HttpRequest
-                        .newBuilder(URI.create(node + meta.getRequest().getURI()))
-                        .setHeader(PROXY_HEADER_NAME, PROXY_HEADER_VALUE);
-                final var body = meta.getRequest().getBody();
-                switch (meta.getMethod()) {
-                    case GET:
-                        requestBuilder.GET();
-                        break;
-                    case PUT:
-                        requestBuilder.PUT(HttpRequest.BodyPublishers.ofByteArray(body));
-                        break;
-                    case DELETE:
-                        requestBuilder.DELETE();
-                        break;
-                    case POST:
-                        requestBuilder.POST(HttpRequest.BodyPublishers.ofByteArray(body));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Service doesn't support method "
-                                + meta.getMethod());
+                if (!topology.isMe(node)) {
+                    final var requestBuilder = HttpRequest
+                            .newBuilder(URI.create(node + meta.getRequest().getURI()))
+                            .setHeader(PROXY_HEADER_NAME, PROXY_HEADER_VALUE);
+                    final var body = meta.getRequest().getBody();
+                    switch (meta.getMethod()) {
+                        case GET:
+                            requestBuilder.GET();
+                            break;
+                        case PUT:
+                            requestBuilder.PUT(HttpRequest.BodyPublishers.ofByteArray(body));
+                            break;
+                        case DELETE:
+                            requestBuilder.DELETE();
+                            break;
+                        case POST:
+                            requestBuilder.POST(HttpRequest.BodyPublishers.ofByteArray(body));
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Service doesn't support method "
+                                    + meta.getMethod());
+                    }
+                    futures.add(httpClient.sendAsync(
+                            requestBuilder.build(),
+                            HttpResponse.BodyHandlers.ofByteArray()));
                 }
-                futures.add(httpClient.sendAsync(
-                        requestBuilder.build(),
-                        HttpResponse.BodyHandlers.ofByteArray()));
             }
             return getFirstResponses(futures, acks);
         }
