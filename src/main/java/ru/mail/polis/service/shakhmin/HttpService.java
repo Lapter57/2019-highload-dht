@@ -25,7 +25,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 final class HttpService {
@@ -74,7 +74,7 @@ final class HttpService {
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> getFromDao(meta.getId(), values))
-                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
+                .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> handleResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
@@ -111,7 +111,7 @@ final class HttpService {
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> upsertToDao(meta.getId(), meta.getValue()))
-                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
+                .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> handleResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
@@ -148,7 +148,7 @@ final class HttpService {
         final var replicas = topology.replicas(
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> removeFromDao(meta.getId()))
-                .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
+                .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta))
                 .whenCompleteAsync((responses, failure) -> handleResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
@@ -162,14 +162,28 @@ final class HttpService {
                 });
     }
 
+    /**
+     * Counts acks and sends a specific response if
+     * {@code acks == expectedAcks} or sends the error
+     * 504 Gateway Timeout.
+     *
+     * @param acks an initial value of acks
+     * @param expectedAcks an expected value of acks
+     * @param session a {@link HttpSession}
+     * @param responses list of {@link HttpResponse<T>}
+     * @param successful a {@link Predicate<HttpResponse<T>} that checks if response is successful
+     * @param supplier a {@link Supplier<Response>} whose a returned {@link Response} is used
+     *                 when {@code acks >= expectedAcks}
+     * @param <T> the response body type
+     */
     private static <T> void handleResponses(int acks,
                                             final int expectedAcks,
                                             @NotNull final HttpSession session,
-                                            @NotNull final List<T> responses,
-                                            @NotNull final Function<T, Boolean> handler,
+                                            @NotNull final List<HttpResponse<T>> responses,
+                                            @NotNull final Predicate<HttpResponse<T>> successful,
                                             @NotNull final Supplier<Response> supplier) {
         for (final var response : responses) {
-            if (handler.apply(response)) {
+            if (successful.test(response)) {
                 acks++;
             }
         }
@@ -180,11 +194,20 @@ final class HttpService {
         }
     }
 
+    /**
+     * Runs the action asynchronously if
+     * this node contains in {@code replicas}.
+     *
+     * @param replicas a list of hosts of replicas
+     * @param action the action to run
+     * @return a {@link CompletableFuture<Boolean>} that contains true if
+     *         this node contains in {@code replicas}
+     */
     private CompletableFuture<Boolean> handleLocally(@NotNull final List<String> replicas,
-                                                     @NotNull final Runnable handler) {
+                                                     @NotNull final Runnable action) {
         return CompletableFuture.supplyAsync(() -> {
             if (replicas.contains(topology.whoAmI())) {
-                handler.run();
+                action.run();
                 return true;
             }
             return false;
@@ -218,6 +241,14 @@ final class HttpService {
         }
     }
 
+    /**
+     * Sends specific requests to the replicas using {@link HttpClient}.
+     *
+     * @param replicas a list of hosts of replicas
+     * @param meta a meta info of a request
+     * @return a {@link CompletableFuture} that contains list of responses from the replicas
+     *         or empty list if {@code acks == 0}
+     */
     @NotNull
     private CompletableFuture<List<HttpResponse<byte[]>>> getResponsesFromReplicas(
             @NotNull final List<String> replicas,
@@ -260,18 +291,31 @@ final class HttpService {
         return CompletableFuture.completedFuture(Collections.emptyList());
     }
 
-    private static <T> CompletableFuture<List<T>> getFirstResponses(@NotNull final List<CompletableFuture<T>> futures,
-                                                                    final int acks) {
+    /**
+     * Return {@link CompletableFuture} that is completed normally
+     * when enough responses are received from the replicas or
+     * the number of non-received responses is no longer enough.
+     * The returned CompletableFuture will contains list of
+     * received responses.
+     *
+     * @param futures a list of {@link CompletableFuture}
+     * @param acks a count of expected responses
+     * @param <T> the response body type
+     * @return a {@code CompletableFuture<List<HttpResponse<T>>>}
+     */
+    private static <T> CompletableFuture<List<HttpResponse<T>>> getFirstResponses(
+            @NotNull final List<CompletableFuture<HttpResponse<T>>> futures,
+            final int acks) {
         if (futures.size() < acks) {
             throw new IllegalArgumentException("Number of expected responses = "
                     + futures.size() + " but acks = " + acks);
         }
         final int maxFails = futures.size() - acks;
         final var fails = new AtomicInteger(0);
-        final var responses = new CopyOnWriteArrayList<T>();
-        final var result = new CompletableFuture<List<T>>();
+        final var responses = new CopyOnWriteArrayList<HttpResponse<T>>();
+        final var result = new CompletableFuture<List<HttpResponse<T>>>();
 
-        final BiConsumer<T,Throwable> biConsumer = (value, failure) -> {
+        final BiConsumer<HttpResponse<T>,Throwable> biConsumer = (value, failure) -> {
             if ((failure != null || value == null) && fails.incrementAndGet() > maxFails) {
                 result.complete(responses);
             } else if (!result.isDone() && value != null) {
@@ -293,7 +337,7 @@ final class HttpService {
     }
 
     static void sendResponse(@NotNull final HttpSession session,
-                                    @NotNull final Response response) {
+                             @NotNull final Response response) {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
