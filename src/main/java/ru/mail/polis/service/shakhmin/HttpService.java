@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 final class HttpService {
@@ -54,14 +53,20 @@ final class HttpService {
     void get(@NotNull final HttpSession session,
              @NotNull final MetaRequest meta) {
         if (meta.proxied()) {
-            try {
-                final var response = Value.transform(
-                        Value.from(dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))),
-                        true);
-                sendResponse(session, response);
-            } catch (IOException e) {
-                sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    final var response = Value.transform(
+                            Value.from(dao.getCell(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)))),
+                            true);
+                    sendResponse(session, response);
+                } catch (IOException e) {
+                    sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
+                }
+            })
+            .exceptionally(ex -> {
+                log.error("Failed to get from the dao", ex);
+                return null;
+            });
             return;
         }
 
@@ -70,15 +75,13 @@ final class HttpService {
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> getFromDao(meta.getId(), values))
                 .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
-                .whenCompleteAsync((responses, failure) -> {
-                    handleResponses(
-                            replicas.contains(topology.whoAmI()) ? 1 : 0,
-                            session,
-                            responses,
-                            r -> values.add(Value.from(r)),
-                            a -> a >= meta.getRf().getAck(),
-                            () -> Value.transform(Value.merge(values), false));
-                })
+                .whenCompleteAsync((responses, failure) -> handleResponses(
+                        replicas.contains(topology.whoAmI()) ? 1 : 0,
+                        meta.getRf().getAck(),
+                        session,
+                        responses,
+                        r -> values.add(Value.from(r)),
+                        () -> Value.transform(Value.merge(values), false)))
                 .exceptionally(ex -> {
                     log.error("Failed to get responses", ex);
                     return null;
@@ -88,14 +91,20 @@ final class HttpService {
     void upsert(@NotNull final HttpSession session,
                 @NotNull final MetaRequest meta) {
         if (meta.proxied()) {
-            try {
-                dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
-                sendResponse(session, new Response(Response.CREATED, Response.EMPTY));
-            } catch (NoSuchElementException e) {
-                sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
-            } catch (IOException e) {
-                sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    dao.upsert(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getValue());
+                    sendResponse(session, new Response(Response.CREATED, Response.EMPTY));
+                } catch (NoSuchElementException e) {
+                    sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
+                } catch (IOException e) {
+                    sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
+                }
+            })
+            .exceptionally(ex -> {
+                log.error("Failed to upsert into the dao", ex);
+                return null;
+            });
             return;
         }
 
@@ -103,15 +112,13 @@ final class HttpService {
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> upsertToDao(meta.getId(), meta.getValue()))
                 .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
-                .whenCompleteAsync((responses, failure) -> {
-                    handleResponses(
-                            replicas.contains(topology.whoAmI()) ? 1 : 0,
-                            session,
-                            responses,
-                            r -> r.statusCode() == 201,
-                            a -> a >= meta.getRf().getAck(),
-                            () -> new Response(Response.CREATED, Response.EMPTY));
-                })
+                .whenCompleteAsync((responses, failure) -> handleResponses(
+                        replicas.contains(topology.whoAmI()) ? 1 : 0,
+                        meta.getRf().getAck(),
+                        session,
+                        responses,
+                        r -> r.statusCode() == 201,
+                        () -> new Response(Response.CREATED, Response.EMPTY)))
                 .exceptionally(ex -> {
                     log.error("Failed to get responses", ex);
                     return null;
@@ -121,14 +128,20 @@ final class HttpService {
     void delete(@NotNull final HttpSession session,
                 @NotNull final MetaRequest meta) {
         if (meta.proxied()) {
-            try {
-                dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
-                sendResponse(session, new Response(Response.ACCEPTED, Response.EMPTY));
-            } catch (NoSuchElementException e) {
-                sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
-            } catch (IOException e) {
-                sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
-            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    dao.remove(ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)));
+                    sendResponse(session, new Response(Response.ACCEPTED, Response.EMPTY));
+                } catch (NoSuchElementException e) {
+                    sendResponse(session, new Response(Response.NOT_FOUND, Response.EMPTY));
+                } catch (IOException e) {
+                    sendResponse(session, new Response(Response.INTERNAL_ERROR, Response.EMPTY));
+                }
+            })
+            .exceptionally(ex -> {
+                log.error("Failed to remove from the dao", ex);
+                return null;
+            });
             return;
         }
 
@@ -136,15 +149,13 @@ final class HttpService {
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> removeFromDao(meta.getId()))
                 .thenComposeAsync(loc -> getResponsesFromReplicas(replicas, meta))
-                .whenCompleteAsync((responses, failure) -> {
-                    handleResponses(
-                            replicas.contains(topology.whoAmI()) ? 1 : 0,
-                            session,
-                            responses,
-                            r -> r.statusCode() == 202,
-                            a -> a >= meta.getRf().getAck(),
-                            () -> new Response(Response.ACCEPTED, Response.EMPTY));
-                })
+                .whenCompleteAsync((responses, failure) -> handleResponses(
+                        replicas.contains(topology.whoAmI()) ? 1 : 0,
+                        meta.getRf().getAck(),
+                        session,
+                        responses,
+                        r -> r.statusCode() == 202,
+                        () -> new Response(Response.ACCEPTED, Response.EMPTY)))
                 .exceptionally(ex -> {
                     log.error("Failed to get responses", ex);
                     return null;
@@ -152,17 +163,17 @@ final class HttpService {
     }
 
     private static <T> void handleResponses(int acks,
+                                            final int expectedAcks,
                                             @NotNull final HttpSession session,
                                             @NotNull final List<T> responses,
                                             @NotNull final Function<T, Boolean> handler,
-                                            @NotNull final Predicate<Integer> isSuccess,
                                             @NotNull final Supplier<Response> supplier) {
         for (final var response : responses) {
             if (handler.apply(response)) {
                 acks++;
             }
         }
-        if (isSuccess.test(acks)) {
+        if (acks >= expectedAcks) {
             sendResponse(session, supplier.get());
         } else {
             sendResponse(session, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
