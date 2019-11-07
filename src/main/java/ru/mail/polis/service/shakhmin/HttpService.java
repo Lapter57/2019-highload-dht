@@ -320,7 +320,7 @@ final class HttpService {
                 result.complete(responses);
             } else if (!result.isDone() && value != null) {
                 responses.add(value);
-                if (responses.size() == acks) {
+                if (responses.size() >= acks) {
                     result.complete(responses);
                 }
             }
