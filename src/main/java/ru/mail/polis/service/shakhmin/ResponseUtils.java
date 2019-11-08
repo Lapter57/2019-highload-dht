@@ -20,7 +20,7 @@ final class ResponseUtils {
     }
 
     public static void sendResponse(@NotNull final HttpSession session,
-                             @NotNull final Response response) {
+                                    @NotNull final Response response) {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
@@ -33,9 +33,9 @@ final class ResponseUtils {
     }
 
     public static void checkPutResponses(final int startAcks,
-                                      final int expectedAcks,
-                                      @NotNull final List<HttpResponse<byte[]>> responses,
-                                      @NotNull final HttpSession session) {
+                                         final int expectedAcks,
+                                         @NotNull final List<HttpResponse<byte[]>> responses,
+                                         @NotNull final HttpSession session) {
         final int acks = countAcks(
                 startAcks,
                 responses, r -> r.statusCode() == 201);
@@ -45,9 +45,9 @@ final class ResponseUtils {
     }
 
     public static void checkDeleteResponses(final int startAcks,
-                                         final int expectedAcks,
-                                         @NotNull final List<HttpResponse<byte[]>> responses,
-                                         @NotNull final HttpSession session) {
+                                            final int expectedAcks,
+                                            @NotNull final List<HttpResponse<byte[]>> responses,
+                                            @NotNull final HttpSession session) {
         final int acks = countAcks(
                 startAcks,
                 responses, r -> r.statusCode() == 202);
@@ -57,10 +57,10 @@ final class ResponseUtils {
     }
 
     public static void checkGetResponses(final int startAcks,
-                                      final int expectedAcks,
-                                      @NotNull final List<Value> values,
-                                      @NotNull final List<HttpResponse<byte[]>> responses,
-                                      @NotNull final HttpSession session) {
+                                         final int expectedAcks,
+                                         @NotNull final List<Value> values,
+                                         @NotNull final List<HttpResponse<byte[]>> responses,
+                                         @NotNull final HttpSession session) {
         final int acks = countAcks(
                 startAcks,
                 responses, r -> values.add(Value.from(r)));

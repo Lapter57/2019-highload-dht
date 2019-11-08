@@ -87,8 +87,6 @@ public final class MetaRequest {
     }
 
     public enum RequestMethod {
-        GET, POST, HEAD,
-        OPTIONS, PUT, DELETE,
-        TRACE, CONNECT, PATCH;
+        GET, POST, PUT, DELETE
     }
 }

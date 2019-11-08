@@ -20,7 +20,7 @@ final class StorageSession extends HttpSession {
     private Iterator<Record> records;
 
     StorageSession(@NotNull final Socket socket,
-                          @NotNull final HttpServer server) {
+                   @NotNull final HttpServer server) {
         super(socket, server);
     }
 
