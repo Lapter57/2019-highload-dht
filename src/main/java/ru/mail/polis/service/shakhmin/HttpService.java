@@ -18,11 +18,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-import static ru.mail.polis.service.shakhmin.FutureUtils.FUTURE_ERROR_LOG;
 import static ru.mail.polis.service.shakhmin.FutureUtils.getResponsesFromReplicas;
-import static ru.mail.polis.service.shakhmin.ResponseUtils.checkDeleteResponses;
-import static ru.mail.polis.service.shakhmin.ResponseUtils.checkGetResponses;
-import static ru.mail.polis.service.shakhmin.ResponseUtils.checkPutResponses;
 import static ru.mail.polis.service.shakhmin.ResponseUtils.sendResponse;
 
 final class HttpService {
@@ -73,13 +69,13 @@ final class HttpService {
 
         handleLocally(replicas, () -> getFromDao(meta.getId(), values))
                 .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta, topology, httpClient))
-                .whenCompleteAsync((responses, failure) -> checkGetResponses(
+                .whenCompleteAsync((responses, failure) -> ResponseUtils.checkGetResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
                         values, responses, session
                 ))
                 .exceptionally(ex -> {
-                    log.error(FUTURE_ERROR_LOG, ex);
+                    log.error(FutureUtils.FUTURE_ERROR_LOG, ex);
                     return null;
                 });
     }
@@ -109,13 +105,13 @@ final class HttpService {
 
         handleLocally(replicas, () -> upsertToDao(meta.getId(), meta.getValue()))
                 .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta, topology, httpClient))
-                .whenCompleteAsync((responses, failure) -> checkPutResponses(
+                .whenCompleteAsync((responses, failure) -> ResponseUtils.checkPutResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
                         responses, session
                 ))
                 .exceptionally(ex -> {
-                    log.error(FUTURE_ERROR_LOG, ex);
+                    log.error(FutureUtils.FUTURE_ERROR_LOG, ex);
                     return null;
                 });
     }
@@ -144,13 +140,13 @@ final class HttpService {
                 ByteBuffer.wrap(meta.getId().getBytes(Charsets.UTF_8)), meta.getRf().getFrom());
         handleLocally(replicas, () -> removeFromDao(meta.getId()))
                 .thenComposeAsync(handled -> getResponsesFromReplicas(replicas, meta, topology, httpClient))
-                .whenCompleteAsync((responses, failure) -> checkDeleteResponses(
+                .whenCompleteAsync((responses, failure) -> ResponseUtils.checkDeleteResponses(
                         replicas.contains(topology.whoAmI()) ? 1 : 0,
                         meta.getRf().getAck(),
                         responses, session
                 ))
                 .exceptionally(ex -> {
-                    log.error(FUTURE_ERROR_LOG, ex);
+                    log.error(FutureUtils.FUTURE_ERROR_LOG, ex);
                     return null;
                 });
     }
