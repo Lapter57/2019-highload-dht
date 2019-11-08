@@ -20,7 +20,10 @@ import java.util.concurrent.Executor;
 
 import static ru.mail.polis.service.shakhmin.FutureUtils.FUTURE_ERROR_LOG;
 import static ru.mail.polis.service.shakhmin.FutureUtils.getResponsesFromReplicas;
-import static ru.mail.polis.service.shakhmin.ResponseUtils.*;
+import static ru.mail.polis.service.shakhmin.ResponseUtils.checkDeleteResponses;
+import static ru.mail.polis.service.shakhmin.ResponseUtils.checkGetResponses;
+import static ru.mail.polis.service.shakhmin.ResponseUtils.checkPutResponses;
+import static ru.mail.polis.service.shakhmin.ResponseUtils.sendResponse;
 
 final class HttpService {
 
@@ -158,7 +161,7 @@ final class HttpService {
      *
      * @param replicas a list of hosts of replicas
      * @param action the action to run
-     * @return a {@link CompletableFuture<Boolean>} that contains true if
+     * @return a {@code CompletableFuture<Boolean>} that contains true if
      *         this node contains in {@code replicas}
      */
     private CompletableFuture<Boolean> handleLocally(@NotNull final List<String> replicas,

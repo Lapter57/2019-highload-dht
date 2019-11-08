@@ -73,8 +73,8 @@ final class ResponseUtils {
      * Counts the number of successful responses.
      *
      * @param startAcks an initial value of acks
-     * @param responses a list of {@link HttpResponse <byte[]>}
-     * @param successful a {@link Predicate <HttpResponse<byte[]>} that checks
+     * @param responses a list of {@code HttpResponse<byte[]>}
+     * @param successful a {@code Predicate<HttpResponse<byte[]>} that checks
      *                   if response is successful
      * @return the number of successful responses
      */
@@ -96,7 +96,7 @@ final class ResponseUtils {
      *
      * @param acks acks
      * @param expectedAcks an expected value of acks
-     * @param supplier a {@link Supplier <Response>} whose a returned {@link Response} is used
+     * @param supplier a {@code Supplier<Response>} whose a returned {@link Response} is used
      *                 when {@code acks >= expectedAcks}
      * @param session a {@link HttpSession}
      */

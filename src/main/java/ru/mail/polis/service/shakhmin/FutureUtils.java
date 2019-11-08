@@ -35,7 +35,7 @@ final class FutureUtils {
      * @param replicas a list of hosts of replicas
      * @param meta a meta info of a request
      * @return a {@link CompletableFuture} that contains list of responses from the replicas
-     * or empty list if {@code acks == 0}
+     *         or empty list if {@code acks == 0}
      */
     @NotNull
     static CompletableFuture<List<HttpResponse<byte[]>>> getResponsesFromReplicas(
