@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
 import static ru.mail.polis.service.shakhmin.HttpService.PROXY_HEADER;
-import static ru.mail.polis.service.shakhmin.HttpService.sendResponse;
+import static ru.mail.polis.service.shakhmin.ResponseUtils.sendResponse;
 
 public class ReplicatedHttpServer extends HttpServer implements Service {
 

@@ -4,15 +4,8 @@ import one.nio.http.Request;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.service.shakhmin.topology.RF;
 import java.nio.ByteBuffer;
-import static one.nio.http.Request.METHOD_CONNECT;
-import static one.nio.http.Request.METHOD_DELETE;
-import static one.nio.http.Request.METHOD_GET;
-import static one.nio.http.Request.METHOD_HEAD;
-import static one.nio.http.Request.METHOD_OPTIONS;
-import static one.nio.http.Request.METHOD_PATCH;
-import static one.nio.http.Request.METHOD_POST;
-import static one.nio.http.Request.METHOD_PUT;
-import static one.nio.http.Request.METHOD_TRACE;
+
+import static one.nio.http.Request.*;
 
 public final class MetaRequest {
 

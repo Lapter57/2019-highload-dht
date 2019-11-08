@@ -7,6 +7,7 @@ import ru.mail.polis.dao.shakhmin.Cell;
 import java.net.http.HttpResponse;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Locale;
 
 final class Value implements Comparable<Value> {
     private static final String TIMESTAMP_HEADER_NAME = "X-OK-Timestamp";
@@ -43,7 +44,8 @@ final class Value implements Comparable<Value> {
     @NotNull
     public static Value from(@NotNull final HttpResponse<byte[]> response) {
         final var headers = response.headers();
-        final var timestamp = headers.firstValue(TIMESTAMP_HEADER_NAME.toLowerCase()).orElse(null);
+        final var timestamp = headers.firstValue(
+                TIMESTAMP_HEADER_NAME.toLowerCase(Locale.ENGLISH)).orElse(null);
         if (response.statusCode() == 200) {
             if (timestamp == null) {
                 throw new IllegalArgumentException("Wrong input data");
