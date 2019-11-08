@@ -3,17 +3,13 @@ package ru.mail.polis.service.shakhmin;
 import one.nio.http.Request;
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.service.shakhmin.topology.RF;
+
 import java.nio.ByteBuffer;
 
-import static one.nio.http.Request.METHOD_CONNECT;
 import static one.nio.http.Request.METHOD_DELETE;
 import static one.nio.http.Request.METHOD_GET;
-import static one.nio.http.Request.METHOD_HEAD;
-import static one.nio.http.Request.METHOD_OPTIONS;
-import static one.nio.http.Request.METHOD_PATCH;
 import static one.nio.http.Request.METHOD_POST;
 import static one.nio.http.Request.METHOD_PUT;
-import static one.nio.http.Request.METHOD_TRACE;
 
 public final class MetaRequest {
 
@@ -50,26 +46,11 @@ public final class MetaRequest {
             case METHOD_POST:
                 method = RequestMethod.POST;
                 break;
-            case METHOD_HEAD:
-                method = RequestMethod.HEAD;
-                break;
             case METHOD_PUT:
                 method = RequestMethod.PUT;
                 break;
-            case METHOD_OPTIONS:
-                method = RequestMethod.OPTIONS;
-                break;
             case METHOD_DELETE:
                 method = RequestMethod.DELETE;
-                break;
-            case METHOD_TRACE:
-                method = RequestMethod.TRACE;
-                break;
-            case METHOD_CONNECT:
-                method = RequestMethod.CONNECT;
-                break;
-            case METHOD_PATCH:
-                method = RequestMethod.PATCH;
                 break;
             default:
                 throw new IllegalArgumentException("This method is not supported");
