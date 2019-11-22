@@ -100,7 +100,7 @@ public final class SSTable implements Table {
     private long position(@NotNull final ByteBuffer key) {
         long left = 0;
         long right = rowsNumber - 1;
-        while(left <= right) {
+        while (left <= right) {
             final long mid = (left + right) >>> 1;
             final int cmp = keyAt(rowAt(mid)).compareTo(key);
             if (cmp < 0) {
@@ -155,7 +155,7 @@ public final class SSTable implements Table {
 
         @Override
         public Row next() {
-            if(!hasNext()){
+            if (!hasNext()) {
                 throw new NoSuchElementException();
             }
             final var row = transform(position);

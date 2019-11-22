@@ -76,12 +76,12 @@ public final class LSMDao implements DAO {
      *
      * @param flushDir local disk folder to persist the data to
      * @param flushThresholdInBytes threshold of size of Memtable
-     * @param nThreadsToFlush number of threads to flush tables
+     * @param numFlushingThreads number of threads to flush tables
      * @throws IOException if an I/O error is thrown by a visitor method
      */
     public LSMDao(@NotNull final File flushDir,
                   final long flushThresholdInBytes,
-                  final int nThreadsToFlush) throws IOException {
+                  final int numFlushingThreads) throws IOException {
         this.flushDir = flushDir;
         final var serialNumberSStable = new AtomicLong();
         Files.walkFileTree(flushDir.toPath(), new SimpleFileVisitor<>() {
@@ -100,11 +100,11 @@ public final class LSMDao implements DAO {
                 return FileVisitResult.CONTINUE;
             }
         });
-        log.info("Number of threads to flush = {}", nThreadsToFlush);
+        log.info("Number of threads to flush = {}", numFlushingThreads);
         this.memTable = new MemTablePool(
                 flushThresholdInBytes,
                 serialNumberSStable.get(),
-                nThreadsToFlush,
+                numFlushingThreads,
                 new FlushingTask());
     }
 

@@ -42,23 +42,23 @@ public class MemTablePool implements Table, Closeable {
      *
      * @param flushThresholdInBytes threshold of size of Memtable
      * @param startSerialNumber next flushing table serial number
-     * @param nThreadsToFlush number of threads to flush tables
+     * @param numFlushingThreads number of threads to flush tables
      * @param flushingTask task to be performed when a table appears for flushing to disk
      */
     public MemTablePool(final long flushThresholdInBytes,
                         final long startSerialNumber,
-                        final int nThreadsToFlush,
+                        final int numFlushingThreads,
                         @NotNull final Runnable flushingTask) {
         this.flushThresholdInBytes = flushThresholdInBytes;
         this.current = new MemTable();
         this.pendingToFlush = new TreeMap<>();
         this.serialNumber = startSerialNumber;
-        this.flushQueue = new ArrayBlockingQueue<>(nThreadsToFlush + 1);
+        this.flushQueue = new ArrayBlockingQueue<>(numFlushingThreads + 1);
         this.isClosed = new AtomicBoolean();
         this.pendingToCompact = new TreeMap<>();
 
         this.flusher = Executors.newFixedThreadPool(
-                nThreadsToFlush,
+                numFlushingThreads,
                 new ThreadFactoryBuilder().setNameFormat("flusher-%d").build());
         this.flushingTask = flushingTask;
     }

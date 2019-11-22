@@ -115,8 +115,8 @@ final class FutureUtils {
             }
         };
         for (final var future : futures) {
-            future.whenCompleteAsync(biConsumer)
-                    .orTimeout(1, TimeUnit.SECONDS)
+            future.orTimeout(1, TimeUnit.SECONDS)
+                    .whenCompleteAsync(biConsumer)
                     .exceptionally(ex -> {
                         log.error(FUTURE_ERROR_LOG, ex);
                         return null;
