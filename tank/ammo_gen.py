@@ -121,9 +121,13 @@ def ammo_generator(args):
 
 methods=['put', 'put_rew', 'get', 'get_un', 'mix']
 parser = ArgumentParser()
-parser.add_argument('--method', choices=methods, action="store", dest='method', default="get")
-parser.add_argument('--num', action="store", type=int, dest='num', default=1000)
-parser.add_argument('--keys', action="store", dest='keys')
+parser.add_argument('--method', choices=methods, action="store",
+                    dest='method', default="get", required=True,
+                    help='Generation method')
+parser.add_argument('--num', action="store", type=int,
+                    dest='num', default=1000, help='Number of ammo (default = 1000)')
+parser.add_argument('--keys', action="store", dest='keys',
+                    help='A file that holds keys line by line. Required for get, get_un, mix methods')
 args = parser.parse_args()
 
 ammo_generator(args).make_ammos()
