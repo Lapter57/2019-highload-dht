@@ -1,76 +1,75 @@
 from argparse import ArgumentParser
 import abc
 import random
-import io
 import os
+import binascii
 
 class AmmoGenerator:
-    def __init__(self, num_ammo, tag, keys_file=None):
+    def __init__(self, num_ammo, ammo_file, with_saving_keys=True, keys_file=None):
         self.num_ammo = num_ammo
-        self.ammo_file = "ammo_" + tag
+        self.ammo_file = ammo_file
         self.keys_file = keys_file
-        self.tag = tag
+        self.with_saving_keys = with_saving_keys
         if keys_file is not None and os.path.isfile(keys_file):
             with open(keys_file) as f:
-                self.keys = set(f.read().splitlines())
-                self.keys = list(self.keys)
+                self.keys = f.read().splitlines()
+                self.keys.reverse()
         else:
             self.keys = []
 
     def make_ammos(self):
-        with open(self.ammo_file, 'wb') as f:
-            for i in range(self.num_ammo):
-                method, key, body = self.get_info()
-                if key not in self.keys:
-                    self.keys.insert(0, key)
-                self.make_ammo(f, method, "/v0/entity?id=" + str(key), self.tag, body)
-        self.save_keys()
+        requests = []
+        for i in range(self.num_ammo):
+            tag, method, key, body = self.get_info()
+            if self.with_saving_keys:
+                self.keys.append(key)
+            req = self.make_ammo(method, "/v0/entity?id=" + str(key), tag, body)
+            requests.append(req)
+        with open(self.ammo_file + ".ammo", 'wb') as f:
+            for req in requests:
+                f.write(req.encode("ascii"))
+        if self.with_saving_keys:
+            self.save_keys()
 
     @abc.abstractmethod
     def get_info(self):
         pass
 
     def save_keys(self):
-        with open('keys_' + self.tag, 'w') as f:
+        with open(self.ammo_file + ".keys", 'w') as f:
             for key in self.keys:
                 f.write("%s\n" % key)
 
-    @staticmethod
-    def make_ammo(file, method, url, tag, body=None):
-        req_template = ( "%s %s HTTP/1.1\r\n" )
-        content_length_template = ( "Content-Length: %d\r\n\r\n" )
-        size_req_template = ( "%d %s\n" )
+    def make_ammo(self, method, url, tag, body=None):
+        req_with_body_template = (
+            "{method} {url} HTTP/1.1\r\n"
+            "Content-Length: {body_length}\r\n"
+            "\r\n"
+            "{body}"
+        )
+        req_without_body_template = (
+            "{method} {url} HTTP/1.1\r\n\r\n"
+        )
+        req_template = ("{size} {tag}\n{request}\r\n")
 
-        binary_stream = io.BytesIO()
-        req = req_template % (method, url)
+        request = None
         if body is not None:
-            content_length = content_length_template % len(body)
-            req_len = len(req) + len(content_length) + len(body) + len("\r\n")
-            size_req = size_req_template % (req_len, tag)
-            binary_stream.write(size_req.encode("ascii"))
-            binary_stream.write(req.encode("ascii"))
-            binary_stream.write(content_length.encode("ascii"))
-            binary_stream.write(body)
+            request = req_with_body_template.format(
+                method=method, url=url, body=body, body_length=len(body)
+            )
         else:
-            req_len = len(req) + len("\r\n")
-            size_req = size_req_template % (req_len, tag)
-            binary_stream.write(size_req.encode("ascii"))
-            binary_stream.write(req.encode("ascii"))
-        binary_stream.write("\r\n".encode("ascii"))
-        binary_stream.seek(0)
-        file.write(binary_stream.read())
-        binary_stream.close()
+            request = req_without_body_template.format(
+                method=method, url=url
+            )
+        return req_template.format(size=len(request), tag=tag, request=request)
 
-    @staticmethod
-    def random_key():
+    def random_key(self):
         return hex(random.getrandbits(64)).rstrip("L").lstrip("0x")
 
-    @staticmethod
-    def random_body():
-        return os.urandom(256)
+    def random_body(self):
+        return binascii.hexlify(os.urandom(128)).decode()
 
-    @staticmethod
-    def flip(prob):
+    def flip(self, prob):
         return True if random.random() < prob else False
 
 class PutGenerator(AmmoGenerator):
@@ -83,11 +82,11 @@ class PutGenerator(AmmoGenerator):
 
     def get_info(self):
         key = random.choice(self.keys) if self.need_rewrite() else self.random_key()
-        return "PUT", key, self.random_body()
+        return "put", "PUT", key, self.random_body()
 
 class GetGenerator(AmmoGenerator):
     def __init__(self, num_ammo, keys_file, uneven_distr=False):
-        AmmoGenerator.__init__(self, num_ammo, "get", keys_file)
+        AmmoGenerator.__init__(self, num_ammo, "get", False, keys_file)
         self.uneven_distr = uneven_distr
 
     def pick(self):
@@ -95,11 +94,11 @@ class GetGenerator(AmmoGenerator):
 
     def get_info(self):
         key = self.pick() if self.uneven_distr else random.choice(self.keys)
-        return "GET", key, None
+        return "get", "GET", key, None
 
 class MixGenerator(AmmoGenerator):
     def __init__(self, num_ammo, keys_file):
-         AmmoGenerator.__init__(self, num_ammo, "mix", keys_file)
+         AmmoGenerator.__init__(self, num_ammo, "mix", False, keys_file)
 
     def get_method(self):
         return "PUT" if self.flip(0.5) else "GET"
@@ -108,7 +107,7 @@ class MixGenerator(AmmoGenerator):
         method = self.get_method()
         key = self.random_key() if method == "PUT" else random.choice(self.keys)
         body = self.random_body() if method == "PUT" else None
-        return method, key, body
+        return method.lower(), method, key, body
 
 def ammo_generator(args):
     switcher = {
@@ -123,7 +122,7 @@ def ammo_generator(args):
 methods=['put', 'put_rew', 'get', 'get_un', 'mix']
 parser = ArgumentParser()
 parser.add_argument('--method', choices=methods, action="store", dest='method', default="get")
-parser.add_argument('--num', action="store", type=int, dest='num', default=1000000)
+parser.add_argument('--num', action="store", type=int, dest='num', default=1000)
 parser.add_argument('--keys', action="store", dest='keys')
 args = parser.parse_args()
 
